@@ -1,0 +1,43 @@
+{
+  "etudiants": [
+    {
+      "id": 1,
+      "matricule": "2024-0001",
+      "nom": "Diallo",
+      "prenom": "Amadou",
+      "email": "amadou.diallo@email.com",
+      "dateNaissance": "2000-05-15",
+      "telephone": "+221 77 123 45 67",
+      "adresse": "Dakar, Sénégal",
+      "filiere_id": 1,
+      "niveau_id": 1,
+      "statut": "actif"
+    },
+    {
+      "id": 2,
+      "matricule": "2024-0002",
+      "nom": "Sow",
+      "prenom": "Fatou",
+      "email": "fatou.sow@email.com",
+      "dateNaissance": "2001-03-22",
+      "telephone": "+221 77 234 56 78",
+      "adresse": "Thiès, Sénégal",
+      "filiere_id": 1,
+      "niveau_id": 1,
+      "statut": "actif"
+    },
+    {
+      "id": 3,
+      "matricule": "2024-0003",
+      "nom": "Ndiaye",
+      "prenom": "Moussa",
+      "email": "moussa.ndiaye@email.com",
+      "dateNaissance": "1999-11-08",
+      "telephone": "+221 77 345 67 89",
+      "adresse": "Saint-Louis, Sénégal",
+      "filiere_id": 2,
+      "niveau_id": 2,
+      "statut": "actif"
+    }
+  ]
+}

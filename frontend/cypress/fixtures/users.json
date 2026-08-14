@@ -1,0 +1,38 @@
+{
+  "admin": {
+    "id": 1,
+    "email": "admin@gestsco.com",
+    "password": "admin123",
+    "nom": "Administrateur",
+    "prenom": "Principal",
+    "role": "admin",
+    "permissions": ["etudiants", "enseignants", "finances", "parametres"]
+  },
+  "superadmin": {
+    "id": 2,
+    "email": "superadmin@gestsco.com",
+    "password": "superadmin123",
+    "nom": "Super",
+    "prenom": "Admin",
+    "role": "superadmin",
+    "permissions": ["all"]
+  },
+  "enseignant": {
+    "id": 3,
+    "email": "enseignant@gestsco.com",
+    "password": "enseignant123",
+    "nom": "Fall",
+    "prenom": "Ibrahima",
+    "role": "teacher",
+    "permissions": ["notes", "presences"]
+  },
+  "comptable": {
+    "id": 4,
+    "email": "comptable@gestsco.com",
+    "password": "comptable123",
+    "nom": "Ba",
+    "prenom": "Aissatou",
+    "role": "accountant",
+    "permissions": ["finances"]
+  }
+}

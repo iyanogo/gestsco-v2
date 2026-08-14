@@ -1,0 +1,20 @@
+'''
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+Container(spa, "Application React (SPA)", "React, TypeScript", "Fournit l'interface utilisateur pour la gestion de la scolarité.")
+Container(api, "API RESTful", "FastAPI, Python", "Fournit la logique métier et les données via une API REST.")
+ContainerDb(db, "Base de Données", "PostgreSQL", "Stockage persistant des données de l'application.")
+
+System_Ext(user, "Utilisateur", "Étudiant, Enseignant, Agent de Scolarité, Administrateur")
+
+Rel(user, spa, "Utilise", "HTTPS")
+
+Rel_Right(spa, api, "Fait des appels API", "JSON/HTTPS")
+
+Rel_Down(api, db, "Lit/écrit", "SQLAlchemy (ORM)")
+
+@enduml
+'''

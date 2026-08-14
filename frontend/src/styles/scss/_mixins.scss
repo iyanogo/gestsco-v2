@@ -1,0 +1,206 @@
+// =============================================================================
+// GESTSCO - Mixins SASS personnalisés
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Flexbox helpers
+// -----------------------------------------------------------------------------
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+// -----------------------------------------------------------------------------
+// Transitions
+// -----------------------------------------------------------------------------
+@mixin transition($property: all, $duration: 0.2s, $timing: ease-in-out) {
+  transition: $property $duration $timing;
+}
+
+// -----------------------------------------------------------------------------
+// Ombres
+// -----------------------------------------------------------------------------
+@mixin card-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+@mixin card-shadow-hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+@mixin elevation($level: 1) {
+  @if $level == 1 {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  } @else if $level == 2 {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  } @else if $level == 3 {
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.1);
+  } @else if $level == 4 {
+    box-shadow: 0 15px 25px rgba(0, 0, 0, 0.15), 0 5px 10px rgba(0, 0, 0, 0.05);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Texte
+// -----------------------------------------------------------------------------
+@mixin text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin line-clamp($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// -----------------------------------------------------------------------------
+// Responsive breakpoints
+// -----------------------------------------------------------------------------
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == 'sm' {
+    @media (min-width: 576px) { @content; }
+  } @else if $breakpoint == 'md' {
+    @media (min-width: 768px) { @content; }
+  } @else if $breakpoint == 'lg' {
+    @media (min-width: 992px) { @content; }
+  } @else if $breakpoint == 'xl' {
+    @media (min-width: 1200px) { @content; }
+  } @else if $breakpoint == 'xxl' {
+    @media (min-width: 1400px) { @content; }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Sidebar
+// -----------------------------------------------------------------------------
+@mixin sidebar-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  color: $sidebar-color;
+  text-decoration: none;
+  border-radius: $border-radius;
+  margin: 0.125rem 0.5rem;
+  @include transition;
+
+  &:hover {
+    background-color: $sidebar-hover-bg;
+    color: #fff;
+  }
+
+  &.active {
+    background-color: $sidebar-active-bg;
+    color: #fff;
+  }
+
+  .icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Cards personnalisées
+// -----------------------------------------------------------------------------
+@mixin stat-card($color: $primary) {
+  background: linear-gradient(135deg, $color 0%, darken($color, 10%) 100%);
+  color: #fff;
+  border: none;
+  border-radius: $border-radius-lg;
+  @include card-shadow;
+  @include transition;
+
+  &:hover {
+    transform: translateY(-2px);
+    @include card-shadow-hover;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Badges de rôle
+// -----------------------------------------------------------------------------
+@mixin role-badge($color) {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: $color;
+  border-radius: $border-radius-pill;
+}
+
+// -----------------------------------------------------------------------------
+// Formulaires
+// -----------------------------------------------------------------------------
+@mixin form-floating-label {
+  position: relative;
+
+  label {
+    position: absolute;
+    top: 50%;
+    left: 1rem;
+    transform: translateY(-50%);
+    color: #6c757d;
+    pointer-events: none;
+    @include transition;
+  }
+
+  input:focus ~ label,
+  input:not(:placeholder-shown) ~ label {
+    top: 0;
+    font-size: 0.75rem;
+    background: #fff;
+    padding: 0 0.25rem;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Scrollbar personnalisée
+// -----------------------------------------------------------------------------
+@mixin custom-scrollbar($width: 6px, $track: #f1f1f1, $thumb: #c1c1c1) {
+  &::-webkit-scrollbar {
+    width: $width;
+    height: $width;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $track;
+    border-radius: $width;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $thumb;
+    border-radius: $width;
+
+    &:hover {
+      background: darken($thumb, 10%);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Glass effect
+// -----------------------------------------------------------------------------
+@mixin glass-effect {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}

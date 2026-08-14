@@ -1,0 +1,450 @@
+// =============================================================================
+// GESTSCO - Layouts spécifiques par rôle
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Layout Administration
+// -----------------------------------------------------------------------------
+.layout-admin {
+  .sidebar {
+    background: linear-gradient(180deg, $admin-color 0%, darken($admin-color, 15%) 100%);
+  }
+
+  .main-header {
+    border-bottom-color: rgba($admin-color, 0.1);
+  }
+
+  .page-header .page-title::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 24px;
+    background: $admin-color;
+    margin-right: 0.75rem;
+    border-radius: 2px;
+    vertical-align: middle;
+  }
+
+  .stat-card-primary {
+    @include stat-card($admin-color);
+  }
+
+  .nav-link.active {
+    background: rgba(255, 255, 255, 0.15) !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Layout Enseignant
+// -----------------------------------------------------------------------------
+.layout-teacher {
+  .sidebar {
+    background: linear-gradient(180deg, $teacher-color 0%, darken($teacher-color, 15%) 100%);
+  }
+
+  .main-header {
+    border-bottom-color: rgba($teacher-color, 0.1);
+  }
+
+  .page-header .page-title::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 24px;
+    background: $teacher-color;
+    margin-right: 0.75rem;
+    border-radius: 2px;
+    vertical-align: middle;
+  }
+
+  .stat-card-primary {
+    @include stat-card($teacher-color);
+  }
+
+  .quick-actions {
+    .action-card {
+      border-left: 3px solid $teacher-color;
+
+      &:hover {
+        border-left-color: darken($teacher-color, 10%);
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Layout Étudiant
+// -----------------------------------------------------------------------------
+.layout-student {
+  .sidebar {
+    background: linear-gradient(180deg, $student-color 0%, darken($student-color, 15%) 100%);
+  }
+
+  .main-header {
+    border-bottom-color: rgba($student-color, 0.1);
+  }
+
+  .page-header .page-title::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 24px;
+    background: $student-color;
+    margin-right: 0.75rem;
+    border-radius: 2px;
+    vertical-align: middle;
+  }
+
+  .stat-card-primary {
+    @include stat-card($student-color);
+  }
+
+  .student-profile-card {
+    background: linear-gradient(135deg, $student-color 0%, darken($student-color, 10%) 100%);
+    color: #fff;
+    border-radius: $border-radius-lg;
+    padding: 1.5rem;
+
+    .profile-avatar {
+      width: 80px;
+      height: 80px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .profile-info {
+      h4 {
+        color: #fff;
+        margin-bottom: 0.25rem;
+      }
+
+      .matricule {
+        opacity: 0.9;
+        font-size: 0.875rem;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Dashboard Widgets
+// -----------------------------------------------------------------------------
+.dashboard-widget {
+  background: #fff;
+  border-radius: $border-radius-lg;
+  @include card-shadow;
+  margin-bottom: 1.5rem;
+
+  .widget-header {
+    @include flex-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid $border-color;
+
+    .widget-title {
+      font-weight: 600;
+      color: $dark;
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .widget-actions {
+      @include flex-center;
+      gap: 0.5rem;
+    }
+  }
+
+  .widget-body {
+    padding: 1.25rem;
+  }
+
+  .widget-footer {
+    padding: 0.75rem 1.25rem;
+    background: #f8f9fa;
+    border-top: 1px solid $border-color;
+    border-radius: 0 0 $border-radius-lg $border-radius-lg;
+    text-align: center;
+
+    a {
+      font-size: 0.875rem;
+      color: $primary;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Quick Actions Grid
+// -----------------------------------------------------------------------------
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+
+  .action-item {
+    @include flex-column;
+    align-items: center;
+    padding: 1.25rem;
+    background: #fff;
+    border-radius: $border-radius-lg;
+    border: 1px solid $border-color;
+    text-decoration: none;
+    color: $dark;
+    @include transition;
+    @include card-shadow;
+
+    &:hover {
+      transform: translateY(-3px);
+      @include card-shadow-hover;
+      border-color: $primary;
+
+      .action-icon {
+        background: $primary;
+        color: #fff;
+      }
+    }
+
+    .action-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: $border-radius;
+      background: rgba($primary, 0.1);
+      color: $primary;
+      @include flex-center;
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+      @include transition;
+    }
+
+    .action-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-align: center;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Schedule / Timetable
+// -----------------------------------------------------------------------------
+.schedule-widget {
+  .schedule-day {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid $border-color;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .day-header {
+      font-weight: 600;
+      color: $dark;
+      margin-bottom: 0.5rem;
+    }
+
+    .schedule-item {
+      @include flex-between;
+      padding: 0.5rem 0.75rem;
+      background: #f8f9fa;
+      border-radius: $border-radius;
+      margin-bottom: 0.5rem;
+      border-left: 3px solid $primary;
+
+      &.current {
+        background: rgba($primary, 0.1);
+        border-left-color: $success;
+      }
+
+      .schedule-time {
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-weight: 500;
+      }
+
+      .schedule-subject {
+        font-weight: 500;
+        color: $dark;
+      }
+
+      .schedule-room {
+        font-size: 0.8rem;
+        color: #6c757d;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Notifications Panel
+// -----------------------------------------------------------------------------
+.notifications-panel {
+  .notification-item {
+    @include flex-center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: $border-radius;
+    @include transition;
+
+    &:hover {
+      background: #f8f9fa;
+    }
+
+    &.unread {
+      background: rgba($primary, 0.05);
+
+      .notification-dot {
+        display: block;
+      }
+    }
+
+    .notification-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      @include flex-center;
+      flex-shrink: 0;
+
+      &.icon-info { background: rgba($info, 0.1); color: $info; }
+      &.icon-success { background: rgba($success, 0.1); color: $success; }
+      &.icon-warning { background: rgba($warning, 0.1); color: darken($warning, 15%); }
+      &.icon-danger { background: rgba($danger, 0.1); color: $danger; }
+    }
+
+    .notification-content {
+      flex: 1;
+      min-width: 0;
+
+      .notification-title {
+        font-weight: 500;
+        color: $dark;
+        @include text-truncate;
+      }
+
+      .notification-text {
+        font-size: 0.8rem;
+        color: #6c757d;
+        @include line-clamp(2);
+      }
+
+      .notification-time {
+        font-size: 0.75rem;
+        color: #adb5bd;
+        margin-top: 0.25rem;
+      }
+    }
+
+    .notification-dot {
+      display: none;
+      width: 8px;
+      height: 8px;
+      background: $primary;
+      border-radius: 50%;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Grade Card (for students)
+// -----------------------------------------------------------------------------
+.grade-card {
+  background: #fff;
+  border-radius: $border-radius-lg;
+  border: 1px solid $border-color;
+  padding: 1rem;
+  @include transition;
+
+  &:hover {
+    @include card-shadow;
+  }
+
+  .grade-subject {
+    font-weight: 600;
+    color: $dark;
+    margin-bottom: 0.5rem;
+  }
+
+  .grade-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+
+    &.grade-excellent { color: $success; }
+    &.grade-good { color: $info; }
+    &.grade-average { color: $warning; }
+    &.grade-poor { color: $danger; }
+  }
+
+  .grade-max {
+    font-size: 1rem;
+    color: #6c757d;
+  }
+
+  .grade-details {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid $border-color;
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Responsive Adjustments
+// -----------------------------------------------------------------------------
+@media (max-width: 991.98px) {
+  .sidebar {
+    transform: translateX(-100%);
+
+    &.show {
+      transform: translateX(0);
+    }
+  }
+
+  .main-wrapper {
+    margin-left: 0;
+
+    &.sidebar-collapsed {
+      margin-left: 0;
+    }
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: $zindex-sidebar - 1;
+    opacity: 0;
+    visibility: hidden;
+    @include transition;
+
+    &.show {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+}
+
+@media (max-width: 767.98px) {
+  .main-content {
+    padding: 1rem;
+  }
+
+  .page-header .page-title {
+    font-size: 1.25rem;
+  }
+
+  .stat-card {
+    .stat-value {
+      font-size: 1.5rem;
+    }
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -1,0 +1,86 @@
+// Styles pour les composants de gestion des modules
+
+.card-module {
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  }
+  
+  &.inactive {
+    opacity: 0.6;
+  }
+  
+  .module-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    
+    svg {
+      font-size: 2rem;
+    }
+  }
+}
+
+// Couleurs personnalisées pour les modules
+.bg-purple { background-color: #6f42c1 !important; }
+.bg-orange { background-color: #fd7e14 !important; }
+.bg-teal { background-color: #20c997 !important; }
+.bg-indigo { background-color: #6610f2 !important; }
+.bg-pink { background-color: #d63384 !important; }
+
+.bg-purple.bg-opacity-10 { background-color: rgba(111, 66, 193, 0.1) !important; }
+.bg-orange.bg-opacity-10 { background-color: rgba(253, 126, 20, 0.1) !important; }
+.bg-teal.bg-opacity-10 { background-color: rgba(32, 201, 151, 0.1) !important; }
+.bg-indigo.bg-opacity-10 { background-color: rgba(102, 16, 242, 0.1) !important; }
+.bg-pink.bg-opacity-10 { background-color: rgba(214, 51, 132, 0.1) !important; }
+
+.text-purple { color: #6f42c1 !important; }
+.text-orange { color: #fd7e14 !important; }
+.text-teal { color: #20c997 !important; }
+.text-indigo { color: #6610f2 !important; }
+.text-pink { color: #d63384 !important; }
+
+// Switch personnalisé
+.form-switch {
+  .form-check-input {
+    width: 3em;
+    height: 1.5em;
+    cursor: pointer;
+    
+    &:checked {
+      background-color: var(--bs-success);
+      border-color: var(--bs-success);
+    }
+    
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+}
+
+// Liste des modules actifs
+.liste-modules-actifs {
+  .list-group-item {
+    transition: background-color 0.2s ease;
+    
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.02);
+    }
+  }
+}
+
+// Configuration module
+.modal-configuration-module {
+  .form-text {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+}

@@ -1,0 +1,27 @@
+
+
+POUR DEMARRER LE FRONTEND
+---------------------------------------
+cd d:\gestsco-v2\frontend
+npm run dev
+
+POUR DEMARRER LE BACKTEND
+---------------------------------------
+# 1. Backend (port 8000)
+cd d:\gestsco-v2\backend
+uvicorn app.main:app --reload --port 8000
+
+
+CONNEXION
+---------
+username=admin@gestsco.com
+password=admin123
+
+TESTS : Scripts npm ajoutés
+-----------------------
+npm test              # Exécuter tests Jest
+npm run test:watch    # Mode watch
+npm run test:coverage # Avec couverture
+npm run cypress:open  # Ouvrir Cypress UI
+npm run cypress:run   # Exécuter Cypress headless
+npm run test:all      # Tous les tests

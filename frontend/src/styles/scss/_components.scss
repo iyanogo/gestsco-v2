@@ -1,0 +1,619 @@
+// =============================================================================
+// GESTSCO - Composants personnalisés
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Sidebar
+// -----------------------------------------------------------------------------
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: $sidebar-width;
+  height: 100vh;
+  background: $sidebar-bg;
+  color: $sidebar-color;
+  z-index: $zindex-sidebar;
+  @include transition(width, 0.3s);
+  @include custom-scrollbar(4px, transparent, rgba(255, 255, 255, 0.2));
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  &.collapsed {
+    width: $sidebar-collapsed-width;
+
+    .sidebar-brand-text,
+    .nav-link-text,
+    .sidebar-section-title {
+      display: none;
+    }
+
+    .nav-link {
+      justify-content: center;
+      padding: 0.75rem;
+
+      .nav-icon {
+        margin-right: 0;
+      }
+    }
+  }
+
+  .sidebar-brand {
+    @include flex-center;
+    height: 64px;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+    .sidebar-brand-icon {
+      width: 40px;
+      height: 40px;
+      background: $primary;
+      border-radius: $border-radius;
+      @include flex-center;
+      color: #fff;
+      font-weight: bold;
+      font-size: 1.25rem;
+    }
+
+    .sidebar-brand-text {
+      margin-left: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #fff;
+    }
+  }
+
+  .sidebar-section-title {
+    padding: 1rem 1rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .sidebar-nav {
+    padding: 0.5rem 0;
+
+    .nav-item {
+      margin: 0.125rem 0;
+    }
+
+    .nav-link {
+      @include sidebar-item;
+
+      .nav-icon {
+        font-size: 1.125rem;
+        width: 24px;
+        text-align: center;
+        margin-right: 0.75rem;
+      }
+
+      .nav-link-text {
+        flex: 1;
+      }
+
+      .nav-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: $border-radius-pill;
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+
+    .nav-dropdown {
+      .nav-dropdown-toggle {
+        &::after {
+          content: '\F282';
+          font-family: 'bootstrap-icons';
+          margin-left: auto;
+          @include transition(transform);
+        }
+
+        &[aria-expanded="true"]::after {
+          transform: rotate(180deg);
+        }
+      }
+
+      .nav-dropdown-menu {
+        padding-left: 2.5rem;
+
+        .nav-link {
+          padding: 0.5rem 1rem;
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
+
+  .sidebar-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: darken($sidebar-bg, 3%);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Main Content Area
+// -----------------------------------------------------------------------------
+.main-wrapper {
+  margin-left: $sidebar-width;
+  min-height: 100vh;
+  background: #f5f7fa;
+  @include transition(margin-left, 0.3s);
+
+  &.sidebar-collapsed {
+    margin-left: $sidebar-collapsed-width;
+  }
+}
+
+.main-header {
+  position: sticky;
+  top: 0;
+  z-index: $zindex-navbar;
+  background: #fff;
+  border-bottom: 1px solid $border-color;
+  @include glass-effect;
+
+  .header-content {
+    @include flex-between;
+    height: 64px;
+    padding: 0 1.5rem;
+  }
+
+  .header-left {
+    @include flex-center;
+    gap: 1rem;
+  }
+
+  .header-right {
+    @include flex-center;
+    gap: 1rem;
+  }
+
+  .header-search {
+    position: relative;
+    width: 300px;
+
+    .form-control {
+      padding-left: 2.5rem;
+      border-radius: $border-radius-pill;
+      background: #f5f7fa;
+      border: none;
+
+      &:focus {
+        background: #fff;
+        box-shadow: $box-shadow-sm;
+      }
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6c757d;
+    }
+  }
+
+  .header-notifications {
+    position: relative;
+
+    .notification-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 18px;
+      height: 18px;
+      font-size: 0.65rem;
+      @include flex-center;
+    }
+  }
+
+  .header-user {
+    @include flex-center;
+    gap: 0.75rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: $border-radius;
+    @include transition;
+
+    &:hover {
+      background: #f5f7fa;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-info {
+      text-align: left;
+
+      .user-name {
+        font-weight: 500;
+        font-size: 0.875rem;
+        color: $dark;
+      }
+
+      .user-role {
+        font-size: 0.75rem;
+        color: #6c757d;
+      }
+    }
+  }
+}
+
+.main-content {
+  padding: 1.5rem;
+}
+
+// -----------------------------------------------------------------------------
+// Page Header
+// -----------------------------------------------------------------------------
+.page-header {
+  margin-bottom: 1.5rem;
+
+  .page-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $dark;
+    margin-bottom: 0.25rem;
+  }
+
+  .page-breadcrumb {
+    font-size: 0.875rem;
+
+    .breadcrumb-item {
+      color: #6c757d;
+
+      a {
+        color: $primary;
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+
+      &.active {
+        color: $dark;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Stats Cards
+// -----------------------------------------------------------------------------
+.stat-card {
+  @include stat-card;
+  padding: 1.25rem;
+
+  &.stat-primary { @include stat-card($primary); }
+  &.stat-success { @include stat-card($success); }
+  &.stat-warning { @include stat-card($warning); }
+  &.stat-info { @include stat-card($info); }
+  &.stat-danger { @include stat-card($danger); }
+  &.stat-admin { @include stat-card($admin-color); }
+  &.stat-teacher { @include stat-card($teacher-color); }
+  &.stat-student { @include stat-card($student-color); }
+
+  .stat-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: $border-radius;
+    @include flex-center;
+    font-size: 1.5rem;
+  }
+
+  .stat-content {
+    flex: 1;
+    text-align: right;
+
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      opacity: 0.9;
+    }
+  }
+
+  .stat-footer {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 0.8rem;
+
+    .stat-change {
+      @include flex-center;
+      gap: 0.25rem;
+
+      &.positive { color: #a5d6a7; }
+      &.negative { color: #ef9a9a; }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Data Cards
+// -----------------------------------------------------------------------------
+.data-card {
+  background: #fff;
+  border-radius: $border-radius-lg;
+  border: 1px solid $border-color;
+  @include card-shadow;
+  @include transition;
+
+  &:hover {
+    @include card-shadow-hover;
+  }
+
+  .card-header {
+    @include flex-between;
+    padding: 1rem 1.25rem;
+    background: transparent;
+    border-bottom: 1px solid $border-color;
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: $dark;
+      margin: 0;
+    }
+
+    .card-actions {
+      @include flex-center;
+      gap: 0.5rem;
+    }
+  }
+
+  .card-body {
+    padding: 1.25rem;
+  }
+
+  .card-footer {
+    padding: 1rem 1.25rem;
+    background: #f8f9fa;
+    border-top: 1px solid $border-color;
+    border-radius: 0 0 $border-radius-lg $border-radius-lg;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Tables
+// -----------------------------------------------------------------------------
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+
+  thead {
+    th {
+      padding: $table-cell-padding-y $table-cell-padding-x;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6c757d;
+      background: #f8f9fa;
+      border-bottom: 2px solid $border-color;
+
+      &:first-child {
+        border-radius: $border-radius 0 0 0;
+      }
+
+      &:last-child {
+        border-radius: 0 $border-radius 0 0;
+      }
+    }
+  }
+
+  tbody {
+    tr {
+      @include transition;
+
+      &:hover {
+        background: $table-hover-bg;
+      }
+
+      &:nth-child(even) {
+        background: $table-striped-bg;
+
+        &:hover {
+          background: $table-hover-bg;
+        }
+      }
+    }
+
+    td {
+      padding: $table-cell-padding-y $table-cell-padding-x;
+      border-bottom: 1px solid $table-border-color;
+      vertical-align: middle;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Badges
+// -----------------------------------------------------------------------------
+.badge-role {
+  &.badge-admin { @include role-badge($admin-color); }
+  &.badge-teacher { @include role-badge($teacher-color); }
+  &.badge-student { @include role-badge($student-color); }
+}
+
+.badge-status {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: $border-radius-pill;
+
+  &.status-active {
+    background: rgba($success, 0.1);
+    color: $success;
+  }
+
+  &.status-pending {
+    background: rgba($warning, 0.1);
+    color: darken($warning, 15%);
+  }
+
+  &.status-inactive {
+    background: rgba($danger, 0.1);
+    color: $danger;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Buttons
+// -----------------------------------------------------------------------------
+.btn {
+  font-weight: $btn-font-weight;
+  @include transition;
+
+  &.btn-icon {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    @include flex-center;
+    border-radius: $border-radius;
+  }
+
+  &.btn-icon-sm {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+.btn-soft-primary {
+  background: rgba($primary, 0.1);
+  color: $primary;
+  border: none;
+
+  &:hover {
+    background: $primary;
+    color: #fff;
+  }
+}
+
+.btn-soft-success {
+  background: rgba($success, 0.1);
+  color: $success;
+  border: none;
+
+  &:hover {
+    background: $success;
+    color: #fff;
+  }
+}
+
+.btn-soft-danger {
+  background: rgba($danger, 0.1);
+  color: $danger;
+  border: none;
+
+  &:hover {
+    background: $danger;
+    color: #fff;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Forms
+// -----------------------------------------------------------------------------
+.form-floating-custom {
+  @include form-floating-label;
+}
+
+.form-control, .form-select {
+  border-radius: $border-radius;
+  border-color: $input-border-color;
+  @include transition;
+
+  &:focus {
+    border-color: $primary;
+    box-shadow: $input-focus-box-shadow;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Avatars
+// -----------------------------------------------------------------------------
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: $primary;
+  color: #fff;
+  @include flex-center;
+  font-weight: 600;
+
+  &.avatar-sm { width: 32px; height: 32px; font-size: 0.75rem; }
+  &.avatar-lg { width: 56px; height: 56px; font-size: 1.25rem; }
+  &.avatar-xl { width: 80px; height: 80px; font-size: 1.75rem; }
+}
+
+// -----------------------------------------------------------------------------
+// Empty State
+// -----------------------------------------------------------------------------
+.empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+
+  .empty-icon {
+    font-size: 4rem;
+    color: #dee2e6;
+    margin-bottom: 1rem;
+  }
+
+  .empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: $dark;
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-description {
+    color: #6c757d;
+    margin-bottom: 1.5rem;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Loading
+// -----------------------------------------------------------------------------
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  @include flex-center;
+  z-index: 9999;
+}
+
+.loading-spinner {
+  @include flex-column;
+  align-items: center;
+  gap: 1rem;
+
+  .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: $primary;
+  }
+}

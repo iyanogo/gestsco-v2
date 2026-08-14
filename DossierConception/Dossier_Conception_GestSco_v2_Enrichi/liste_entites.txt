@@ -1,0 +1,27 @@
+ENTITÉS MÉTIER DU SYSTÈME GESTSCO
+==================================================
+
+ 1. annee
+ 2. coeficient
+ 3. coordinateur
+ 4. cycle
+ 5. departement
+ 6. enseignement
+ 7. etablissement
+ 8. etudiant
+ 9. filiere
+10. importation
+11. inscrit
+12. matiere
+13. mention
+14. module
+15. moyenne
+16. niveau
+17. note
+18. parametre
+19. profil
+20. profil_role
+21. resultat
+22. semestre
+23. type_note
+24. universite

@@ -1,0 +1,36 @@
+'''
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+LAYOUT_WITH_LEGEND()
+
+Deployment_Node(cloud, "Cloud Provider (e.g., AWS, Azure, GCP)", "Infrastructure cloud scalable") {
+    Deployment_Node(k8s, "Kubernetes Cluster", "Orchestration de conteneurs") {
+        Deployment_Node(nginx_ingress, "Nginx Ingress Controller", "Reverse Proxy & Load Balancer")
+
+        Deployment_Node(frontend_pod, "Frontend Pod (React)", "Pod Kubernetes") {
+            Container(react_container, "Conteneur Nginx", "Nginx", "Sert l'application React statique")
+        }
+
+        Deployment_Node(backend_pod, "Backend Pod (FastAPI)", "Pod Kubernetes") {
+            Container(fastapi_container, "Conteneur FastAPI", "Python/Uvicorn", "API RESTful, logique métier")
+        }
+
+        Deployment_Node(db_pod, "Database Pod (PostgreSQL)", "Pod Kubernetes") {
+            Container(db_container, "Conteneur PostgreSQL", "PostgreSQL 14+", "Stockage des données")
+        }
+    }
+
+    Deployment_Node(redis, "Cache (Redis)", "Cache distribué en mémoire")
+}
+
+Deployment_Node(user, "Utilisateur Final", "Navigateur Web")
+
+Rel(user, nginx_ingress, "Accède via HTTPS", "HTTPS")
+Rel(nginx_ingress, react_container, "Route vers le frontend", "HTTP")
+Rel(nginx_ingress, fastapi_container, "Route vers le backend (/api)", "HTTP")
+Rel(fastapi_container, db_container, "Lit/écrit dans la BD", "SQL")
+Rel(fastapi_container, redis, "Lit/écrit dans le cache", "TCP")
+
+@enduml
+'''

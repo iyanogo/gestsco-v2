@@ -1,0 +1,2643 @@
+{
+  "annee": {
+    "name": "annee",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "statut",
+        "type": "boolean",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etat",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "lier_enseignement",
+        "type": "boolean",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": true
+      }
+    ]
+  },
+  "coeficient": {
+    "name": "coeficient",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "valeur",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "matiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "enseignement_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "type_note_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "coordinateur": {
+    "name": "coordinateur",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "nom",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "prenom",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "telephone",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "email",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "date_naissance",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "lieu_naissance",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "sexe",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "cycle": {
+    "name": "cycle",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "databasechangelog": {
+    "name": "databasechangelog",
+    "columns": [
+      {
+        "name": "id",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "author",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "filename",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "dateexecuted",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "orderexecuted",
+        "type": "integer",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "exectype",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "md5sum",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "description",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "comments",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "tag",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "liquibase",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "contexts",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "labels",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "deployment_id",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "databasechangeloglock": {
+    "name": "databasechangeloglock",
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "locked",
+        "type": "boolean",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "lockgranted",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "lockedby",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "departement": {
+    "name": "departement",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etablissement_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "enseignement": {
+    "name": "enseignement",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "module_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "filiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "semestre_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "cycle_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "niveau_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "tpe",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "va",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "vcvh",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "vp",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "etablissement": {
+    "name": "etablissement",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "nom",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "ville",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "adresse",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "telephone",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "fixe",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "email",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "universite_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "nom_directeur",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "prenom_directeur",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "tel_directeur",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "etudiant": {
+    "name": "etudiant",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "nom",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "prenom",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "date_naissance",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "lieu_naissance",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "telephone",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "cni",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee_bac",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "numero_bac",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "mention",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "boursier",
+        "type": "boolean",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "sexe",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "diplome",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "matricule",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "nationalite",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "importation_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "filiere": {
+    "name": "filiere",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etabissement_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "coordonateur_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "coordinateur_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etablissement_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "importation": {
+    "name": "importation",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "file_name",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "sheet_name",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "cycle_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "filiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "niveau_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "inscrit": {
+    "name": "inscrit",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etudiant_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "enseignement_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "jhi_authority": {
+    "name": "jhi_authority",
+    "columns": [
+      {
+        "name": "name",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      }
+    ]
+  },
+  "jhi_user": {
+    "name": "jhi_user",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "login",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "password_hash",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "first_name",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_name",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "email",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "image_url",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "activated",
+        "type": "boolean",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "lang_key",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "activation_key",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "reset_key",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "reset_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "profil_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "telephone",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "jhi_user_authority": {
+    "name": "jhi_user_authority",
+    "columns": [
+      {
+        "name": "user_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "authority_name",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      }
+    ]
+  },
+  "matiere": {
+    "name": "matiere",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "module_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "tpe",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "va",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "vcvh",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "vp",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "mention": {
+    "name": "mention",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "max_moyenne",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "min_moyenne",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "module": {
+    "name": "module",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "vol_horaire",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "coordinateur_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "tpe",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "va",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "vcvh",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "vp",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "semestre_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "filiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "moyenne": {
+    "name": "moyenne",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "appreciation",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "moyenne",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "note_ponderee",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "session",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etudiant_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "filiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "matiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "module_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "semestre_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "niveau": {
+    "name": "niveau",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "note": {
+    "name": "note",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "note",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "matiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "type_note_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etudiant_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etat",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "note_order",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "session",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "parametre": {
+    "name": "parametre",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "key",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "selection",
+        "type": "boolean",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "value",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "profil": {
+    "name": "profil",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "description",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "profil_role": {
+    "name": "profil_role",
+    "columns": [
+      {
+        "name": "profils_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "authority_name",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      }
+    ]
+  },
+  "resultat": {
+    "name": "resultat",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "annee",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "credit_semestre",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "decision",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "moyenne_semestre",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "session",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "total_semestre",
+        "type": "double",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "etudiant_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "filiere_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "niveau_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "semestre_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "semestre": {
+    "name": "semestre",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "niveau_id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": true,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "type_note": {
+    "name": "type_note",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "libelle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  },
+  "universite": {
+    "name": "universite",
+    "columns": [
+      {
+        "name": "id",
+        "type": "bigint",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "code",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "nom",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": true,
+        "has_default": false
+      },
+      {
+        "name": "sigle",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "ville",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "adresse",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "telephone",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "fixe",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "email",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "site",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_by",
+        "type": "character",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      },
+      {
+        "name": "last_modified_date",
+        "type": "timestamp",
+        "is_primary_key": false,
+        "is_foreign_key": false,
+        "is_not_null": false,
+        "has_default": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "factures": [
+    {
+      "id": 1,
+      "numero": "FAC-2025-001",
+      "etudiant_id": 1,
+      "etudiant_nom": "Diallo Amadou",
+      "montant_total": 300000,
+      "montant_paye": 150000,
+      "reste_a_payer": 150000,
+      "date_emission": "2025-01-01",
+      "date_echeance": "2025-03-31",
+      "statut": "partiel"
+    },
+    {
+      "id": 2,
+      "numero": "FAC-2025-002",
+      "etudiant_id": 2,
+      "etudiant_nom": "Sow Fatou",
+      "montant_total": 300000,
+      "montant_paye": 300000,
+      "reste_a_payer": 0,
+      "date_emission": "2025-01-01",
+      "date_echeance": "2025-03-31",
+      "statut": "paye"
+    }
+  ],
+  "paiements": [
+    {
+      "id": 1,
+      "facture_id": 1,
+      "numero_recu": "REC-2025-001",
+      "montant": 150000,
+      "date_paiement": "2025-01-05",
+      "mode_paiement": "especes",
+      "statut": "valide"
+    },
+    {
+      "id": 2,
+      "facture_id": 2,
+      "numero_recu": "REC-2025-002",
+      "montant": 300000,
+      "date_paiement": "2025-01-03",
+      "mode_paiement": "virement",
+      "statut": "valide"
+    }
+  ],
+  "typesFrais": [
+    {
+      "id": 1,
+      "code": "SCOL",
+      "nom": "Frais de scolarité",
+      "montant": 250000,
+      "obligatoire": true,
+      "statut": "actif"
+    },
+    {
+      "id": 2,
+      "code": "INSC",
+      "nom": "Frais d'inscription",
+      "montant": 50000,
+      "obligatoire": true,
+      "statut": "actif"
+    }
+  ]
+}

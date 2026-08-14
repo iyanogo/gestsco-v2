@@ -1,0 +1,99 @@
+// =============================================================================
+// GESTSCO - Main SCSS Entry Point
+// Design moderne pour établissements éducatifs
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. Variables personnalisées (avant Bootstrap)
+// -----------------------------------------------------------------------------
+@import 'variables';
+
+// -----------------------------------------------------------------------------
+// 2. Bootstrap complet
+// -----------------------------------------------------------------------------
+@import 'bootstrap/scss/bootstrap';
+
+// -----------------------------------------------------------------------------
+// 3. Bootstrap Icons
+// -----------------------------------------------------------------------------
+@import 'bootstrap-icons/font/bootstrap-icons.css';
+
+// -----------------------------------------------------------------------------
+// 4. Google Fonts
+// -----------------------------------------------------------------------------
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+// -----------------------------------------------------------------------------
+// 5. Custom Mixins
+// -----------------------------------------------------------------------------
+@import 'mixins';
+
+// -----------------------------------------------------------------------------
+// 6. Custom Components
+// -----------------------------------------------------------------------------
+@import 'components';
+
+// -----------------------------------------------------------------------------
+// 7. Layout Styles
+// -----------------------------------------------------------------------------
+@import 'layouts';
+
+// -----------------------------------------------------------------------------
+// 8. Global Styles
+// -----------------------------------------------------------------------------
+
+// Base styles
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f5f7fa;
+  color: #333;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Animation utilities
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+// Utility classes
+.cursor-pointer {
+  cursor: pointer;
+}
+
+// Print styles
+@media print {
+  .sidebar,
+  .main-header,
+  .no-print {
+    display: none !important;
+  }
+
+  .main-wrapper {
+    margin-left: 0 !important;
+  }
+
+  .main-content {
+    padding: 0 !important;
+  }
+}
