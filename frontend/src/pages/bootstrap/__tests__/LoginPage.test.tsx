@@ -2,7 +2,16 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import LoginPage from '../auth/LoginPage';
 
-jest.mock('../../../services/api');
+const mockLogin = jest.fn();
+
+jest.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({
+    login: mockLogin,
+    isAuthenticated: false,
+    isLoading: false,
+    user: null,
+  }),
+}));
 
 const renderLoginPage = () => {
   return render(
@@ -13,28 +22,29 @@ const renderLoginPage = () => {
 };
 
 describe('LoginPage', () => {
+  beforeEach(() => {
+    mockLogin.mockReset();
+  });
+
   describe('rendering', () => {
     it('should render login form', () => {
       renderLoginPage();
-      
-      // Check for email input
-      expect(screen.getByPlaceholderText(/email|utilisateur/i)).toBeInTheDocument();
-      // Check for submit button
-      expect(screen.getByRole('button', { name: /connexion|login|se connecter/i })).toBeInTheDocument();
+
+      expect(screen.getByPlaceholderText(/votre@email.com/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /se connecter/i })).toBeInTheDocument();
     });
 
-    it('should render quick access buttons for demo', () => {
+    it('should render demo account buttons', () => {
       renderLoginPage();
-      
-      expect(screen.getByText(/SuperAdmin/i)).toBeInTheDocument();
-      // Admin appears in SuperAdmin too, so use getAllByText
-      expect(screen.getAllByText(/Admin/).length).toBeGreaterThan(0);
+
+      expect(screen.getByRole('button', { name: /Admin/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Scolarité/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Comptable/i })).toBeInTheDocument();
     });
 
     it('should render logo and title', () => {
       renderLoginPage();
-      
-      // Multiple elements may match - use getAllByText
+
       expect(screen.getAllByText(/GestSco/i).length).toBeGreaterThan(0);
     });
   });
@@ -42,23 +52,36 @@ describe('LoginPage', () => {
   describe('form interaction', () => {
     it('should allow typing in email field', () => {
       renderLoginPage();
-      
-      const emailInput = screen.getByPlaceholderText(/email|utilisateur/i);
+
+      const emailInput = screen.getByPlaceholderText(/votre@email.com/i);
       fireEvent.change(emailInput, { target: { value: 'test@email.com' } });
-      
+
       expect(emailInput).toHaveValue('test@email.com');
+    });
+
+    it('should call login on submit', async () => {
+      mockLogin.mockResolvedValue(undefined);
+      renderLoginPage();
+
+      fireEvent.change(screen.getByPlaceholderText(/votre@email.com/i), {
+        target: { value: 'admin@gestsco.com' },
+      });
+      fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+        target: { value: 'Admin@123' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /se connecter/i }));
+
+      expect(mockLogin).toHaveBeenCalledWith('admin@gestsco.com', 'Admin@123');
     });
   });
 
   describe('quick access buttons', () => {
-    it('should fill form with SuperAdmin credentials on click', () => {
+    it('should fill form with admin credentials on click', () => {
       renderLoginPage();
-      
-      const superAdminButton = screen.getByText(/SuperAdmin/i);
-      fireEvent.click(superAdminButton);
-      
-      const emailInput = screen.getByPlaceholderText(/email|utilisateur/i);
-      expect(emailInput).toHaveValue('superadmin@gestsco.com');
+
+      fireEvent.click(screen.getByRole('button', { name: /^Admin$/i }));
+
+      expect(screen.getByPlaceholderText(/votre@email.com/i)).toHaveValue('admin@gestsco.com');
     });
   });
 });

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { User, RegisterRequest, AuthState } from '@/types/auth';
 import authService from '@/services/authService';
+import { useRbacMatrixStore } from '@/store/rbacMatrixStore';
 
 interface AuthActions {
   login: (email: string, password: string) => Promise<void>;
@@ -33,6 +34,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
       try {
         const user = await authService.getCurrentUser();
         set({ user });
+        void useRbacMatrixStore.getState().loadMatrix();
       } catch (userError) {
         console.warn('[AuthStore] Could not fetch user info:', userError);
       }
@@ -58,6 +60,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   logout: () => {
     authService.logout();
+    useRbacMatrixStore.getState().reset();
     set({
       user: null,
       token: null,
@@ -77,8 +80,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const user = await authService.getCurrentUser();
       set({ user, isAuthenticated: true, isLoading: false, error: null });
+      void useRbacMatrixStore.getState().loadMatrix();
     } catch (error) {
       authService.logout();
+      useRbacMatrixStore.getState().reset();
       set({
         user: null,
         token: null,

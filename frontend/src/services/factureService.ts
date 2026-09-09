@@ -7,7 +7,7 @@ import {
   StatistiquesFinances,
 } from '../types/finance';
 
-const BASE_URL = '/factures';
+const BASE_URL = '/api/v1/factures';
 
 export const factureService = {
   getFactures: async (params?: {

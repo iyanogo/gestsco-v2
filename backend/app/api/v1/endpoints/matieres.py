@@ -1,16 +1,21 @@
 """
 Endpoints API pour la gestion des matières.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
 from app.models.user import User
 from app.repositories import matiere_repository, module_repository
 from app.schemas.matiere import Matiere, MatiereCreate, MatiereUpdate
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
+from app.utils.rbac_resolver import require_permission
 
 router = APIRouter(prefix="/matieres", tags=["Matières"])
+
+_MATIERE_FIELDS = ("code", "libelle", "module_id", "credit", "obligatoire")
 
 
 @router.get(
@@ -117,8 +122,9 @@ def get_matiere_volume_horaire(
 )
 def create_matiere(
     matiere_in: MatiereCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """Crée une nouvelle matière."""
     if not module_repository.exists(db, matiere_in.module_id):
@@ -132,7 +138,17 @@ def create_matiere(
             detail=f"Le code '{matiere_in.code}' existe déjà",
         )
     try:
-        return matiere_repository.create(db, matiere_in)
+        matiere = matiere_repository.create(db, matiere_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="matiere",
+            entity_id=matiere.id,
+            new_values=fields_snapshot(matiere, *_MATIERE_FIELDS),
+        )
+        return matiere
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -150,8 +166,9 @@ def create_matiere(
 def update_matiere(
     matiere_id: int,
     matiere_in: MatiereUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Met à jour une matière."""
     matiere = matiere_repository.get_by_id(db, matiere_id)
@@ -174,8 +191,20 @@ def update_matiere(
                 detail=f"Le code '{matiere_in.code}' existe déjà",
             )
     
+    old_snapshot = fields_snapshot(matiere, *_MATIERE_FIELDS)
     try:
-        return matiere_repository.update(db, matiere_id, matiere_in)
+        updated = matiere_repository.update(db, matiere_id, matiere_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="matiere",
+            entity_id=matiere_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_MATIERE_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -192,13 +221,30 @@ def update_matiere(
 )
 def delete_matiere(
     matiere_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """Supprime une matière (suppression logique)."""
+    matiere = matiere_repository.get_by_id(db, matiere_id)
+    if not matiere:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Matière non trouvée",
+        )
+    old_snapshot = fields_snapshot(matiere, *_MATIERE_FIELDS)
     if not matiere_repository.delete(db, matiere_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Matière non trouvée",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="matiere",
+        entity_id=matiere_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Matière supprimée avec succès"}

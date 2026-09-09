@@ -29,7 +29,7 @@ import { ParametreSysteme, CATEGORIES_PARAMETRES } from '../../types/parametrage
 interface ParametresListProps {
   parametresParCategorie: Record<string, ParametreSysteme[]>;
   loading: boolean;
-  onUpdateValeur: (cle: string, valeur: any) => Promise<void>;
+  onUpdateValeur?: (cle: string, valeur: any) => Promise<void>;
   onRefresh: () => void;
 }
 
@@ -54,6 +54,7 @@ const ParametresList: React.FC<ParametresListProps> = ({
   };
 
   const handleSave = async (cle: string) => {
+    if (!onUpdateValeur) return;
     setSaving(true);
     try {
       await onUpdateValeur(cle, editValue);
@@ -183,7 +184,7 @@ const ParametresList: React.FC<ParametresListProps> = ({
                             </Tooltip>
                           </>
                         ) : (
-                          parametre.est_modifiable && (
+                          parametre.est_modifiable && onUpdateValeur && (
                             <Tooltip title="Modifier">
                               <IconButton size="small" onClick={() => handleEdit(parametre)}>
                                 <EditIcon />

@@ -210,6 +210,8 @@ export interface Matiere {
   va?: number;
   vcvh?: number;
   vp?: number;
+  credit?: number;
+  obligatoire?: boolean;
   module_id?: number;
   created_by?: string;
   created_date?: string;
@@ -226,6 +228,8 @@ export interface CreateMatiere {
   va?: number;
   vcvh?: number;
   vp?: number;
+  credit?: number;
+  obligatoire?: boolean;
   module_id?: number;
 }
 

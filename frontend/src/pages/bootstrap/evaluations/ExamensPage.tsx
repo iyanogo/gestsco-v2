@@ -1,225 +1,542 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Table, Button, Form, InputGroup, Badge, Modal } from 'react-bootstrap';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert, Badge, Button, Col, Form, Modal, Row, Spinner, Table,
+} from 'react-bootstrap';
+import { AxiosError } from 'axios';
+import { PageHeader } from '../../../components/layouts';
+import { DataCard, StatCard } from '../../../components/ui';
+import { usePermissions } from '../../../hooks/usePermissions';
+import examenService from '../../../services/examenService';
+import { sessionExamenService } from '../../../services/sessionExamenService';
+import { getMatieres } from '../../../services/matiereService';
+import { getNiveaux } from '../../../services/niveauService';
+import { getUsersForSelect } from '../../../services/userService';
+import { handleApiError } from '../../../utils/errorHandler';
+import {
+  STATUT_EXAMEN_LABELS,
+  TYPE_EVALUATION_LABELS,
+  type CreateExamen,
+  type Examen,
+  type SessionExamen,
+  type StatutExamen,
+  type TypeEvaluation,
+  type UpdateExamen,
+} from '../../../types/evaluation';
+import type { Matiere } from '../../../types/reference';
+import type { Niveau } from '../../../types/reference';
+import type { User } from '../../../types/auth';
 
-interface Examen {
-  id: number;
-  code: string;
-  matiere: string;
-  filiere: string;
-  niveau: string;
-  date: string;
-  heure: string;
-  duree: number;
-  salle: string;
-  enseignant: string;
-  nombreInscrits: number;
-  statut: 'planifie' | 'en_cours' | 'termine' | 'annule';
-}
+const extractError = (err: unknown): string => {
+  if (err instanceof AxiosError) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+  }
+  return handleApiError(err);
+};
 
-const mockExamens: Examen[] = [
-  { id: 1, code: 'EX-INF101', matiere: 'Algorithmique', filiere: 'Informatique', niveau: 'L1', date: '2025-01-15', heure: '08:00', duree: 180, salle: 'Amphi A', enseignant: 'Dr. Amadou Diallo', nombreInscrits: 120, statut: 'planifie' },
-  { id: 2, code: 'EX-INF102', matiere: 'Bases de Données', filiere: 'Informatique', niveau: 'L2', date: '2025-01-15', heure: '14:00', duree: 120, salle: 'Salle 101', enseignant: 'Dr. Ibrahima Fall', nombreInscrits: 85, statut: 'planifie' },
-  { id: 3, code: 'EX-GES101', matiere: 'Comptabilité', filiere: 'Gestion', niveau: 'L1', date: '2025-01-16', heure: '08:00', duree: 180, salle: 'Amphi B', enseignant: 'Dr. Fatou Sow', nombreInscrits: 150, statut: 'planifie' },
-  { id: 4, code: 'EX-MAT101', matiere: 'Analyse', filiere: 'Informatique', niveau: 'L1', date: '2025-01-10', heure: '08:00', duree: 180, salle: 'Amphi A', enseignant: 'Pr. Moussa Ndiaye', nombreInscrits: 120, statut: 'termine' },
-  { id: 5, code: 'EX-ECO201', matiere: 'Microéconomie', filiere: 'Économie', niveau: 'L2', date: '2025-01-17', heure: '10:00', duree: 120, salle: 'Salle 205', enseignant: 'Dr. Aïssatou Ba', nombreInscrits: 65, statut: 'planifie' },
-];
+const statutBadge = (statut: StatutExamen) => {
+  const label = STATUT_EXAMEN_LABELS[statut] || statut;
+  const variant =
+    statut === 'valide' ? 'success'
+      : statut === 'termine' || statut === 'notes_saisies' ? 'info'
+        : statut === 'en_cours' ? 'warning'
+          : 'secondary';
+  return <Badge bg={variant}>{label}</Badge>;
+};
+
+const TYPE_OPTIONS = Object.entries(TYPE_EVALUATION_LABELS) as [TypeEvaluation, string][];
+
+const emptyForm: CreateExamen = {
+  session_id: 0,
+  matiere_id: 0,
+  niveau_id: 0,
+  type_evaluation: 'controle_continu',
+  date_examen: '',
+  duree_minutes: 120,
+  salle: '',
+  coefficient: 1,
+  note_sur: 20,
+  anonymat: false,
+  enseignant_id: undefined,
+  description: '',
+};
 
 const ExamensPage: React.FC = () => {
-  const [examens, setExamens] = useState<Examen[]>(mockExamens);
+  const { moduleActions } = usePermissions();
+  const { canCreate, canUpdate, canDelete } = moduleActions('evaluations_notes');
+
+  const [examens, setExamens] = useState<Examen[]>([]);
+  const [sessions, setSessions] = useState<SessionExamen[]>([]);
+  const [matieres, setMatieres] = useState<Matiere[]>([]);
+  const [niveaux, setNiveaux] = useState<Niveau[]>([]);
+  const [enseignants, setEnseignants] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterSession, setFilterSession] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
+
   const [showModal, setShowModal] = useState(false);
-  const [editingExamen, setEditingExamen] = useState<Examen | null>(null);
-  const [formData, setFormData] = useState({
-    code: '', matiere: '', filiere: '', niveau: '', date: '', heure: '08:00', duree: 120, salle: '', enseignant: ''
-  });
+  const [editing, setEditing] = useState<Examen | null>(null);
+  const [formData, setFormData] = useState<CreateExamen>(emptyForm);
 
-  const filteredExamens = examens.filter(e => {
-    const matchSearch = e.matiere.toLowerCase().includes(searchTerm.toLowerCase()) || e.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatut = !filterStatut || e.statut === filterStatut;
-    return matchSearch && matchStatut;
-  });
+  const matiereMap = useMemo(() => new Map(matieres.map((m) => [m.id, m])), [matieres]);
+  const niveauMap = useMemo(() => new Map(niveaux.map((n) => [n.id, n])), [niveaux]);
+  const sessionMap = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
+  const enseignantMap = useMemo(() => new Map(enseignants.map((u) => [u.id, u])), [enseignants]);
 
-  const getStatutBadge = (statut: string) => {
-    switch (statut) {
-      case 'planifie': return <Badge bg="info">Planifié</Badge>;
-      case 'en_cours': return <Badge bg="warning" text="dark">En cours</Badge>;
-      case 'termine': return <Badge bg="success">Terminé</Badge>;
-      case 'annule': return <Badge bg="danger">Annulé</Badge>;
-      default: return <Badge bg="secondary">{statut}</Badge>;
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const examParams: { session_id?: number; statut?: string; limit: number } = { limit: 500 };
+      if (filterSession) examParams.session_id = Number(filterSession);
+      if (filterStatut) examParams.statut = filterStatut;
+
+      const [examenData, sessionData, matiereData, niveauData, userData] = await Promise.all([
+        examenService.getExamens(examParams),
+        sessionExamenService.getSessions({ limit: 100 }),
+        getMatieres(),
+        getNiveaux(),
+        getUsersForSelect({
+          roles: ['enseignant', 'teacher', 'admin', 'administrateur', 'scolarite'],
+          limit: 200,
+        }),
+      ]);
+      setExamens(examenData);
+      setSessions(sessionData);
+      setMatieres(matiereData);
+      setNiveaux(niveauData);
+      setEnseignants(userData);
+    } catch (err) {
+      setError(extractError(err));
+    } finally {
+      setLoading(false);
     }
+  }, [filterSession, filterStatut]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const filteredExamens = useMemo(() => {
+    if (!searchTerm.trim()) return examens;
+    const q = searchTerm.toLowerCase();
+    return examens.filter((ex) => {
+      const mat = matiereMap.get(ex.matiere_id);
+      const label = mat?.libelle || mat?.code || '';
+      return label.toLowerCase().includes(q) || String(ex.id).includes(q);
+    });
+  }, [examens, searchTerm, matiereMap]);
+
+  const stats = useMemo(
+    () => ({
+      total: examens.length,
+      planifies: examens.filter((e) => e.statut === 'planifie').length,
+      termines: examens.filter((e) => e.statut === 'termine' || e.statut === 'valide').length,
+    }),
+    [examens],
+  );
+
+  const matiereLabel = (ex: Examen) => {
+    const m = ex.matiere ?? matiereMap.get(ex.matiere_id);
+    return m?.libelle || m?.code || `#${ex.matiere_id}`;
   };
 
-  const handleShowModal = (examen?: Examen) => {
-    if (examen) {
-      setEditingExamen(examen);
-      setFormData({ code: examen.code, matiere: examen.matiere, filiere: examen.filiere, niveau: examen.niveau, date: examen.date, heure: examen.heure, duree: examen.duree, salle: examen.salle, enseignant: examen.enseignant });
-    } else {
-      setEditingExamen(null);
-      setFormData({ code: '', matiere: '', filiere: '', niveau: '', date: '', heure: '08:00', duree: 120, salle: '', enseignant: '' });
-    }
+  const niveauLabel = (ex: Examen) => {
+    const n = ex.niveau ?? niveauMap.get(ex.niveau_id);
+    return n?.libelle || n?.code || `#${ex.niveau_id}`;
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setFormData({
+      ...emptyForm,
+      session_id: sessions[0]?.id ?? 0,
+      matiere_id: matieres[0]?.id ?? 0,
+      niveau_id: niveaux[0]?.id ?? 0,
+    });
     setShowModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const openEdit = (examen: Examen) => {
+    setEditing(examen);
+    setFormData({
+      session_id: examen.session_id,
+      matiere_id: examen.matiere_id,
+      niveau_id: examen.niveau_id,
+      type_evaluation: examen.type_evaluation,
+      date_examen: examen.date_examen ?? '',
+      duree_minutes: examen.duree_minutes ?? 120,
+      salle: examen.salle ?? '',
+      coefficient: examen.coefficient,
+      note_sur: examen.note_sur,
+      anonymat: examen.anonymat,
+      enseignant_id: examen.enseignant_id,
+      description: examen.description ?? '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingExamen) {
-      setExamens(examens.map(ex => ex.id === editingExamen.id ? { ...ex, ...formData } : ex));
-    } else {
-      setExamens([...examens, { id: Math.max(...examens.map(ex => ex.id)) + 1, ...formData, nombreInscrits: 0, statut: 'planifie' }]);
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const payload = {
+        ...formData,
+        date_examen: formData.date_examen || undefined,
+        salle: formData.salle || undefined,
+        description: formData.description || undefined,
+        enseignant_id: formData.enseignant_id || undefined,
+      };
+      if (editing) {
+        const { session_id: _s, ...updatePayload } = payload;
+        await examenService.updateExamen(editing.id, updatePayload as UpdateExamen);
+        setSuccess('Examen modifié.');
+      } else {
+        await examenService.createExamen(payload);
+        setSuccess('Examen créé.');
+      }
+      setShowModal(false);
+      await loadData();
+    } catch (err) {
+      setError(extractError(err));
+    } finally {
+      setSaving(false);
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('Supprimer cet examen ?')) setExamens(examens.filter(e => e.id !== id));
-  };
-
-  const stats = {
-    total: examens.length,
-    planifies: examens.filter(e => e.statut === 'planifie').length,
-    termines: examens.filter(e => e.statut === 'termine').length,
-    totalInscrits: examens.reduce((acc, e) => acc + e.nombreInscrits, 0)
+  const runAction = async (label: string, action: () => Promise<unknown>) => {
+    setError(null);
+    setSuccess(null);
+    try {
+      await action();
+      setSuccess(label);
+      await loadData();
+    } catch (err) {
+      setError(extractError(err));
+    }
   };
 
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1 fw-bold">Examens</h2>
-              <p className="text-muted mb-0">Planification et gestion des sessions d'examens</p>
-            </div>
-            <Button variant="primary" onClick={() => handleShowModal()}>
-              <i className="bi bi-plus-lg me-2"></i>Nouvel examen
+    <div className="fade-in">
+      <PageHeader
+        title="Examens"
+        subtitle="Planification et gestion des évaluations"
+        breadcrumbs={[
+          { label: 'Évaluations' },
+          { label: 'Examens' },
+        ]}
+        actions={
+          canCreate ? (
+            <Button variant="primary" onClick={openCreate} disabled={sessions.length === 0}>
+              <i className="bi bi-plus-lg me-2"></i>
+              Nouvel examen
             </Button>
-          </div>
-        </Col>
+          ) : undefined
+        }
+      />
+
+      {error && <Alert variant="danger" dismissible onClose={() => setError(null)}>{error}</Alert>}
+      {success && <Alert variant="success" dismissible onClose={() => setSuccess(null)}>{success}</Alert>}
+
+      <Row className="g-3 mb-4">
+        <Col sm={6} xl={4}><StatCard title="Total examens" value={stats.total} icon="calendar-event" variant="primary" /></Col>
+        <Col sm={6} xl={4}><StatCard title="Planifiés" value={stats.planifies} icon="clock" variant="info" /></Col>
+        <Col sm={6} xl={4}><StatCard title="Terminés / validés" value={stats.termines} icon="check-circle" variant="success" /></Col>
       </Row>
 
-      <Row className="mb-4">
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-primary text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-calendar-event fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.total}</h3><small>Total examens</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-info text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-clock fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.planifies}</h3><small>Planifiés</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-success text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-check-circle fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.termines}</h3><small>Terminés</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-warning text-dark">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-people fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.totalInscrits}</h3><small>Inscrits</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      <DataCard title={`${filteredExamens.length} examen(s)`}>
+        <Row className="g-3 mb-4">
+          <Col md={4}>
+            <Form.Control
+              placeholder="Rechercher matière…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </Col>
+          <Col md={4}>
+            <Form.Select value={filterSession} onChange={(e) => setFilterSession(e.target.value)}>
+              <option value="">Toutes sessions</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>{s.code} - {s.libelle}</option>
+              ))}
+            </Form.Select>
+          </Col>
+          <Col md={3}>
+            <Form.Select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
+              <option value="">Tous statuts</option>
+              {Object.entries(STATUT_EXAMEN_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </Form.Select>
+          </Col>
+          <Col md={1} className="text-end">
+            <Button variant="outline-secondary" onClick={loadData} disabled={loading}>
+              <i className="bi bi-arrow-clockwise"></i>
+            </Button>
+          </Col>
+        </Row>
 
-      <Card className="border-0 shadow-sm">
-        <Card.Header className="bg-white py-3">
-          <Row className="align-items-center">
-            <Col md={5}>
-              <InputGroup>
-                <InputGroup.Text className="bg-light border-end-0"><i className="bi bi-search text-muted"></i></InputGroup.Text>
-                <Form.Control type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border-start-0" />
-              </InputGroup>
-            </Col>
-            <Col md={3}>
-              <Form.Select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
-                <option value="">Tous les statuts</option>
-                <option value="planifie">Planifié</option>
-                <option value="en_cours">En cours</option>
-                <option value="termine">Terminé</option>
-                <option value="annule">Annulé</option>
-              </Form.Select>
-            </Col>
-            <Col md={4} className="text-end">
-              <Button variant="outline-success" size="sm"><i className="bi bi-download me-1"></i>Exporter</Button>
-            </Col>
-          </Row>
-        </Card.Header>
-        <Card.Body className="p-0">
-          <Table responsive hover className="mb-0">
-            <thead className="bg-light">
+        {loading ? (
+          <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
+        ) : (
+          <Table responsive hover className="data-table mb-0">
+            <thead>
               <tr>
-                <th className="border-0 px-4 py-3">Code</th>
-                <th className="border-0 py-3">Matière</th>
-                <th className="border-0 py-3">Filière / Niveau</th>
-                <th className="border-0 py-3">Date & Heure</th>
-                <th className="border-0 py-3">Salle</th>
-                <th className="border-0 py-3 text-center">Inscrits</th>
-                <th className="border-0 py-3 text-center">Statut</th>
-                <th className="border-0 py-3 text-end px-4">Actions</th>
+                <th>ID</th>
+                <th>Matière</th>
+                <th>Session</th>
+                <th>Niveau</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Salle</th>
+                <th className="text-center">Statut</th>
+                <th className="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredExamens.map((examen) => (
-                <tr key={examen.id}>
-                  <td className="px-4 py-3"><span className="fw-semibold text-primary">{examen.code}</span></td>
-                  <td className="py-3"><div className="fw-semibold">{examen.matiere}</div><small className="text-muted">{examen.enseignant}</small></td>
-                  <td className="py-3"><div>{examen.filiere}</div><Badge bg="secondary">{examen.niveau}</Badge></td>
-                  <td className="py-3"><div>{new Date(examen.date).toLocaleDateString('fr-FR')}</div><small className="text-muted">{examen.heure} ({examen.duree} min)</small></td>
-                  <td className="py-3">{examen.salle}</td>
-                  <td className="py-3 text-center"><Badge bg="info" className="px-3 py-2">{examen.nombreInscrits}</Badge></td>
-                  <td className="py-3 text-center">{getStatutBadge(examen.statut)}</td>
-                  <td className="py-3 text-end px-4">
-                    <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleShowModal(examen)}><i className="bi bi-pencil"></i></Button>
-                    <Button variant="outline-danger" size="sm" onClick={() => handleDelete(examen.id)}><i className="bi bi-trash"></i></Button>
-                  </td>
-                </tr>
-              ))}
+              {filteredExamens.length === 0 ? (
+                <tr><td colSpan={9} className="text-center text-muted py-4">Aucun examen.</td></tr>
+              ) : (
+                filteredExamens.map((ex) => (
+                  <tr key={ex.id}>
+                    <td className="fw-medium">#{ex.id}</td>
+                    <td>
+                      <div className="fw-medium">{matiereLabel(ex)}</div>
+                      {ex.enseignant_id && (
+                        <small className="text-muted">
+                          {enseignantMap.get(ex.enseignant_id)?.full_name || enseignantMap.get(ex.enseignant_id)?.email || `#${ex.enseignant_id}`}
+                        </small>
+                      )}
+                    </td>
+                    <td>{sessionMap.get(ex.session_id)?.code ?? `#${ex.session_id}`}</td>
+                    <td>{niveauLabel(ex)}</td>
+                    <td>{TYPE_EVALUATION_LABELS[ex.type_evaluation] || ex.type_evaluation}</td>
+                    <td>
+                      {ex.date_examen ? (
+                        <>
+                          <div>{ex.date_examen}</div>
+                          {ex.duree_minutes && <small className="text-muted">{ex.duree_minutes} min</small>}
+                        </>
+                      ) : '-'}
+                    </td>
+                    <td>{ex.salle || '-'}</td>
+                    <td className="text-center">{statutBadge(ex.statut)}</td>
+                    <td className="text-end">
+                      {canUpdate && ex.statut === 'planifie' && (
+                        <Button
+                          variant="outline-warning"
+                          size="sm"
+                          className="me-1"
+                          title="Terminer"
+                          onClick={() => runAction('Examen terminé.', () => examenService.terminerExamen(ex.id))}
+                        >
+                          <i className="bi bi-flag"></i>
+                        </Button>
+                      )}
+                      {canUpdate && (ex.statut === 'termine' || ex.statut === 'notes_saisies') && (
+                        <Button
+                          variant="outline-success"
+                          size="sm"
+                          className="me-1"
+                          title="Valider"
+                          onClick={() => runAction('Examen validé.', () => examenService.validerExamen(ex.id))}
+                        >
+                          <i className="bi bi-check-lg"></i>
+                        </Button>
+                      )}
+                      {canUpdate && ex.statut !== 'valide' && (
+                        <Button variant="outline-primary" size="sm" className="me-1" onClick={() => openEdit(ex)}>
+                          <i className="bi bi-pencil"></i>
+                        </Button>
+                      )}
+                      {canDelete && ex.statut === 'planifie' && (
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => {
+                            if (window.confirm('Supprimer cet examen ?')) {
+                              runAction('Examen supprimé.', () => examenService.deleteExamen(ex.id));
+                            }
+                          }}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </Table>
-        </Card.Body>
-      </Card>
+        )}
+      </DataCard>
 
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
-        <Modal.Header closeButton><Modal.Title>{editingExamen ? 'Modifier l\'examen' : 'Nouvel examen'}</Modal.Title></Modal.Header>
+        <Modal.Header closeButton>
+          <Modal.Title>{editing ? 'Modifier l\'examen' : 'Nouvel examen'}</Modal.Title>
+        </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
-            <Row>
-              <Col md={4}><Form.Group className="mb-3"><Form.Label>Code</Form.Label><Form.Control type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} required /></Form.Group></Col>
-              <Col md={8}><Form.Group className="mb-3"><Form.Label>Matière</Form.Label><Form.Control type="text" value={formData.matiere} onChange={(e) => setFormData({ ...formData, matiere: e.target.value })} required /></Form.Group></Col>
-            </Row>
-            <Row>
-              <Col md={6}><Form.Group className="mb-3"><Form.Label>Filière</Form.Label><Form.Select value={formData.filiere} onChange={(e) => setFormData({ ...formData, filiere: e.target.value })} required><option value="">Sélectionner</option><option value="Informatique">Informatique</option><option value="Gestion">Gestion</option><option value="Économie">Économie</option></Form.Select></Form.Group></Col>
-              <Col md={6}><Form.Group className="mb-3"><Form.Label>Niveau</Form.Label><Form.Select value={formData.niveau} onChange={(e) => setFormData({ ...formData, niveau: e.target.value })} required><option value="">Sélectionner</option><option value="L1">L1</option><option value="L2">L2</option><option value="L3">L3</option><option value="M1">M1</option><option value="M2">M2</option></Form.Select></Form.Group></Col>
-            </Row>
-            <Row>
-              <Col md={4}><Form.Group className="mb-3"><Form.Label>Date</Form.Label><Form.Control type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></Form.Group></Col>
-              <Col md={4}><Form.Group className="mb-3"><Form.Label>Heure</Form.Label><Form.Control type="time" value={formData.heure} onChange={(e) => setFormData({ ...formData, heure: e.target.value })} required /></Form.Group></Col>
-              <Col md={4}><Form.Group className="mb-3"><Form.Label>Durée (min)</Form.Label><Form.Control type="number" value={formData.duree} onChange={(e) => setFormData({ ...formData, duree: parseInt(e.target.value) })} required /></Form.Group></Col>
-            </Row>
-            <Row>
-              <Col md={6}><Form.Group className="mb-3"><Form.Label>Salle</Form.Label><Form.Control type="text" value={formData.salle} onChange={(e) => setFormData({ ...formData, salle: e.target.value })} required /></Form.Group></Col>
-              <Col md={6}><Form.Group className="mb-3"><Form.Label>Enseignant</Form.Label><Form.Control type="text" value={formData.enseignant} onChange={(e) => setFormData({ ...formData, enseignant: e.target.value })} /></Form.Group></Col>
+            <Row className="g-3">
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Session</Form.Label>
+                  <Form.Select
+                    value={formData.session_id || ''}
+                    onChange={(e) => setFormData({ ...formData, session_id: Number(e.target.value) })}
+                    required
+                    disabled={Boolean(editing)}
+                  >
+                    <option value="">Sélectionner…</option>
+                    {sessions.map((s) => (
+                      <option key={s.id} value={s.id}>{s.code} - S{s.semestre}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Type d'évaluation</Form.Label>
+                  <Form.Select
+                    value={formData.type_evaluation}
+                    onChange={(e) => setFormData({ ...formData, type_evaluation: e.target.value as TypeEvaluation })}
+                  >
+                    {TYPE_OPTIONS.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Matière</Form.Label>
+                  <Form.Select
+                    value={formData.matiere_id || ''}
+                    onChange={(e) => setFormData({ ...formData, matiere_id: Number(e.target.value) })}
+                    required
+                  >
+                    <option value="">Sélectionner…</option>
+                    {matieres.map((m) => (
+                      <option key={m.id} value={m.id}>{m.code} - {m.libelle}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Niveau</Form.Label>
+                  <Form.Select
+                    value={formData.niveau_id || ''}
+                    onChange={(e) => setFormData({ ...formData, niveau_id: Number(e.target.value) })}
+                    required
+                  >
+                    <option value="">Sélectionner…</option>
+                    {niveaux.map((n) => (
+                      <option key={n.id} value={n.id}>{n.code} - {n.libelle}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label>Date</Form.Label>
+                  <Form.Control
+                    type="date"
+                    value={formData.date_examen ?? ''}
+                    onChange={(e) => setFormData({ ...formData, date_examen: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label>Durée (min)</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min={30}
+                    value={formData.duree_minutes ?? 120}
+                    onChange={(e) => setFormData({ ...formData, duree_minutes: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label>Salle</Form.Label>
+                  <Form.Control
+                    value={formData.salle ?? ''}
+                    onChange={(e) => setFormData({ ...formData, salle: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label>Coefficient</Form.Label>
+                  <Form.Control
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    value={formData.coefficient ?? 1}
+                    onChange={(e) => setFormData({ ...formData, coefficient: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label>Note sur</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min={1}
+                    value={formData.note_sur ?? 20}
+                    onChange={(e) => setFormData({ ...formData, note_sur: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label>Enseignant</Form.Label>
+                  <Form.Select
+                    value={formData.enseignant_id ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      enseignant_id: e.target.value ? Number(e.target.value) : undefined,
+                    })}
+                  >
+                    <option value="">-</option>
+                    {enseignants.map((u) => (
+                      <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={12}>
+                <Form.Group>
+                  <Form.Label>Description</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formData.description ?? ''}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
             </Row>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowModal(false)}>Annuler</Button>
-            <Button variant="primary" type="submit">{editingExamen ? 'Modifier' : 'Créer'}</Button>
+            <Button variant="primary" type="submit" disabled={saving}>
+              {saving ? <Spinner animation="border" size="sm" className="me-2" /> : null}
+              {editing ? 'Enregistrer' : 'Créer'}
+            </Button>
           </Modal.Footer>
         </Form>
       </Modal>
-    </Container>
+    </div>
   );
 };
 

@@ -1,7 +1,7 @@
 import api from './api';
 import { CreneauHoraire, CreateCreneauHoraire, UpdateCreneauHoraire } from '../types/emploiTemps';
 
-const BASE_URL = '/creneaux-horaires';
+const BASE_URL = '/api/v1/creneaux-horaires';
 
 export const creneauHoraireService = {
   getCreneaux: async (periode?: string): Promise<CreneauHoraire[]> => {

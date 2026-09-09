@@ -7,6 +7,11 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.validators import (
+    ANNEE_ACADEMIQUE_CODE_DESCRIPTION,
+    ANNEE_ACADEMIQUE_CODE_PATTERN,
+)
+
 
 class InscriptionBase(BaseModel):
     """Schéma de base pour une inscription."""
@@ -14,7 +19,12 @@ class InscriptionBase(BaseModel):
     etudiant_id: int = Field(..., description="ID de l'étudiant")
     filiere_id: int = Field(..., description="ID de la filière")
     niveau_id: int = Field(..., description="ID du niveau")
-    annee_academique: str = Field(..., max_length=20, pattern=r"^\d{4}-\d{4}$", description="Année académique (ex: 2024-2025)")
+    annee_academique: str = Field(
+        ...,
+        max_length=20,
+        pattern=ANNEE_ACADEMIQUE_CODE_PATTERN,
+        description=ANNEE_ACADEMIQUE_CODE_DESCRIPTION,
+    )
     type_inscription: str = Field(..., max_length=50, description="Type d'inscription (nouvelle, redoublement, transfert)")
     regime_etudes: Optional[str] = Field(None, max_length=50, description="Régime d'études (présentiel, distance)")
     statut_inscription: str = Field("en_cours", max_length=50, description="Statut de l'inscription (en_cours, validee, annulee)")
@@ -32,7 +42,11 @@ class InscriptionUpdate(BaseModel):
 
     filiere_id: Optional[int] = None
     niveau_id: Optional[int] = None
-    annee_academique: Optional[str] = Field(None, max_length=20, pattern=r"^\d{4}-\d{4}$")
+    annee_academique: Optional[str] = Field(
+        None,
+        max_length=20,
+        pattern=ANNEE_ACADEMIQUE_CODE_PATTERN,
+    )
     type_inscription: Optional[str] = Field(None, max_length=50)
     regime_etudes: Optional[str] = Field(None, max_length=50)
     statut_inscription: Optional[str] = Field(None, max_length=50)

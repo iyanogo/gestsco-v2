@@ -1,207 +1,279 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Table, Button, Form, InputGroup, Badge, Modal } from 'react-bootstrap';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Badge, Button, Form, Modal } from 'react-bootstrap';
+import { PageHeader } from '../../../components/layouts';
+import { AdminSectionNav } from '../../../components/administration';
+import { DataCard, DataTable, SearchFilter, Column } from '../../../components/ui';
+import administrationService, { AuditEvent } from '../../../services/administrationService';
 
-interface AuditEntry {
-  id: number;
-  timestamp: string;
-  utilisateur: string;
-  action: string;
-  entite: string;
-  entiteId: string;
-  ancienneValeur: string;
-  nouvelleValeur: string;
-  ip: string;
-}
-
-const mockAuditEntries: AuditEntry[] = [
-  { id: 1, timestamp: '2025-01-08 09:15:00', utilisateur: 'admin@gestsco.com', action: 'Modification', entite: 'Étudiant', entiteId: '2024-0001', ancienneValeur: 'email: ancien@email.com', nouvelleValeur: 'email: nouveau@email.com', ip: '192.168.1.100' },
-  { id: 2, timestamp: '2025-01-08 09:10:00', utilisateur: 'enseignant@gestsco.com', action: 'Création', entite: 'Note', entiteId: 'NOTE-001', ancienneValeur: '-', nouvelleValeur: 'INF101: 15/20 - Diallo Amadou', ip: '192.168.1.75' },
-  { id: 3, timestamp: '2025-01-08 09:05:00', utilisateur: 'admin@gestsco.com', action: 'Suppression', entite: 'Document', entiteId: 'DOC-045', ancienneValeur: 'Attestation_2024.pdf', nouvelleValeur: '-', ip: '192.168.1.100' },
-  { id: 4, timestamp: '2025-01-08 08:55:00', utilisateur: 'comptable@gestsco.com', action: 'Création', entite: 'Paiement', entiteId: 'PAY-2025-001', ancienneValeur: '-', nouvelleValeur: '150000 FCFA - Sow Fatou', ip: '192.168.1.80' },
-  { id: 5, timestamp: '2025-01-08 08:45:00', utilisateur: 'admin@gestsco.com', action: 'Modification', entite: 'Paramètre', entiteId: 'PARAM-001', ancienneValeur: 'annee_scolaire: 2023-2024', nouvelleValeur: 'annee_scolaire: 2024-2025', ip: '192.168.1.100' },
-  { id: 6, timestamp: '2025-01-07 17:30:00', utilisateur: 'admin@gestsco.com', action: 'Création', entite: 'Utilisateur', entiteId: 'USER-050', ancienneValeur: '-', nouvelleValeur: 'nouveau.prof@gestsco.com (Enseignant)', ip: '192.168.1.100' },
-  { id: 7, timestamp: '2025-01-07 16:00:00', utilisateur: 'enseignant@gestsco.com', action: 'Modification', entite: 'Note', entiteId: 'NOTE-002', ancienneValeur: 'INF102: 12/20', nouvelleValeur: 'INF102: 14/20', ip: '192.168.1.75' },
-];
+const ACTION_BADGE: Record<string, string> = {
+  create: 'success',
+  update: 'primary',
+  delete: 'danger',
+  validate: 'info',
+  cancel: 'warning',
+  reject: 'danger',
+  apply: 'secondary',
+  login: 'info',
+  login_failed: 'warning',
+  publish: 'info',
+  calculate: 'secondary',
+};
 
 const AuditPage: React.FC = () => {
-  const [auditEntries] = useState<AuditEntry[]>(mockAuditEntries);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterAction, setFilterAction] = useState('');
-  const [filterEntite, setFilterEntite] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchValue, setSearchValue] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
+  const [purgeDays, setPurgeDays] = useState(365);
+  const [purgeConfirm, setPurgeConfirm] = useState('');
+  const [purging, setPurging] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const entites = [...new Set(auditEntries.map(e => e.entite))];
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setEvents(
+        await administrationService.getAuditEvents({
+          search: searchValue || undefined,
+          action: filterValues.action || undefined,
+          entity_type: filterValues.entity_type || undefined,
+          limit: 200,
+        }),
+      );
+    } catch {
+      setError('Impossible de charger le journal d\'audit.');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchValue, filterValues]);
 
-  const filteredEntries = auditEntries.filter(e => {
-    const matchSearch = e.utilisateur.toLowerCase().includes(searchTerm.toLowerCase()) || e.entiteId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchAction = !filterAction || e.action === filterAction;
-    const matchEntite = !filterEntite || e.entite === filterEntite;
-    return matchSearch && matchAction && matchEntite;
-  });
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  const getActionBadge = (action: string) => {
-    switch (action) {
-      case 'Création': return <Badge bg="success"><i className="bi bi-plus-circle me-1"></i>Création</Badge>;
-      case 'Modification': return <Badge bg="warning" text="dark"><i className="bi bi-pencil me-1"></i>Modification</Badge>;
-      case 'Suppression': return <Badge bg="danger"><i className="bi bi-trash me-1"></i>Suppression</Badge>;
-      default: return <Badge bg="secondary">{action}</Badge>;
+  const handlePurge = async () => {
+    setPurging(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await administrationService.purgeAudit(purgeDays, purgeConfirm);
+      setSuccess(result.message);
+      setShowPurgeModal(false);
+      setPurgeConfirm('');
+      await loadData();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : null;
+      setError(typeof msg === 'string' ? msg : 'Échec de la purge de l\'audit.');
+    } finally {
+      setPurging(false);
     }
   };
 
-  const stats = {
-    total: auditEntries.length,
-    creations: auditEntries.filter(e => e.action === 'Création').length,
-    modifications: auditEntries.filter(e => e.action === 'Modification').length,
-    suppressions: auditEntries.filter(e => e.action === 'Suppression').length
-  };
+  const columns: Column<AuditEvent>[] = [
+    {
+      key: 'created_at',
+      header: 'Date',
+      render: (item) => (
+        <small>{new Date(item.created_at).toLocaleString('fr-FR')}</small>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      render: (item) => (
+        <Badge bg={ACTION_BADGE[item.action] ?? 'secondary'}>{item.action}</Badge>
+      ),
+    },
+    { key: 'entity_type', header: 'Entité' },
+    { key: 'entity_id', header: 'Référence', render: (item) => <code>{item.entity_id}</code> },
+    {
+      key: 'user',
+      header: 'Utilisateur',
+      render: (item) => item.user_email ?? '-',
+    },
+    {
+      key: 'details',
+      header: 'Détails',
+      render: (item) => {
+        if (item.details) return <span className="small">{item.details}</span>;
+        if (item.new_values) {
+          return (
+            <span className="small text-muted">
+              {JSON.stringify(item.new_values).slice(0, 80)}
+              {JSON.stringify(item.new_values).length > 80 ? '…' : ''}
+            </span>
+          );
+        }
+        return '-';
+      },
+    },
+    {
+      key: 'ip',
+      header: 'IP',
+      render: (item) => item.ip_address ?? '-',
+    },
+  ];
 
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1 fw-bold">Audit</h2>
-              <p className="text-muted mb-0">Historique des modifications et actions sur les données</p>
-            </div>
-            <Button variant="outline-success"><i className="bi bi-download me-2"></i>Exporter</Button>
-          </div>
-        </Col>
-      </Row>
+    <div className="fade-in">
+      <PageHeader
+        title="Audit"
+        subtitle="Trail des modifications sensibles (utilisateurs, inscriptions, évaluations, paramétrage…)"
+        breadcrumbs={[
+          { label: 'Administration', path: '/admin/administration/audit' },
+          { label: 'Audit' },
+        ]}
+        actions={
+          <Button variant="outline-danger" onClick={() => setShowPurgeModal(true)}>
+            <i className="bi bi-trash me-2" />
+            Purger l&apos;historique
+          </Button>
+        }
+      />
 
-      <Row className="mb-4">
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-primary text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-clipboard-data fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.total}</h3><small>Total entrées</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-success text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-plus-circle fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.creations}</h3><small>Créations</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-warning text-dark">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-pencil fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.modifications}</h3><small>Modifications</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-danger text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-trash fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.suppressions}</h3><small>Suppressions</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      <AdminSectionNav />
 
-      <Card className="border-0 shadow-sm">
-        <Card.Header className="bg-white py-3">
-          <Row className="align-items-center">
-            <Col md={4}>
-              <InputGroup>
-                <InputGroup.Text className="bg-light border-end-0"><i className="bi bi-search text-muted"></i></InputGroup.Text>
-                <Form.Control type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border-start-0" />
-              </InputGroup>
-            </Col>
-            <Col md={3}>
-              <Form.Select value={filterAction} onChange={(e) => setFilterAction(e.target.value)}>
-                <option value="">Toutes les actions</option>
-                <option value="Création">Création</option>
-                <option value="Modification">Modification</option>
-                <option value="Suppression">Suppression</option>
-              </Form.Select>
-            </Col>
-            <Col md={3}>
-              <Form.Select value={filterEntite} onChange={(e) => setFilterEntite(e.target.value)}>
-                <option value="">Toutes les entités</option>
-                {entites.map(e => <option key={e} value={e}>{e}</option>)}
-              </Form.Select>
-            </Col>
-            <Col md={2} className="text-end">
-              <span className="text-muted">{filteredEntries.length} entrée(s)</span>
-            </Col>
-          </Row>
-        </Card.Header>
-        <Card.Body className="p-0">
-          <Table responsive hover className="mb-0">
-            <thead className="bg-light">
-              <tr>
-                <th className="border-0 px-4 py-3">Horodatage</th>
-                <th className="border-0 py-3">Utilisateur</th>
-                <th className="border-0 py-3">Action</th>
-                <th className="border-0 py-3">Entité</th>
-                <th className="border-0 py-3">ID</th>
-                <th className="border-0 py-3 text-end px-4">Détails</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEntries.map((entry) => (
-                <tr key={entry.id}>
-                  <td className="px-4 py-3"><small className="text-muted">{entry.timestamp}</small></td>
-                  <td className="py-3"><small>{entry.utilisateur}</small></td>
-                  <td className="py-3">{getActionBadge(entry.action)}</td>
-                  <td className="py-3"><Badge bg="light" text="dark">{entry.entite}</Badge></td>
-                  <td className="py-3"><code className="small">{entry.entiteId}</code></td>
-                  <td className="py-3 text-end px-4">
-                    <Button variant="outline-info" size="sm" onClick={() => { setSelectedEntry(entry); setShowModal(true); }}>
-                      <i className="bi bi-eye"></i>
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </Card.Body>
-      </Card>
+      {error && <Alert variant="danger">{error}</Alert>}
+      {success && <Alert variant="success">{success}</Alert>}
 
-      {/* Modal Détails */}
-      <Modal show={showModal} onHide={() => setShowModal(false)}>
-        <Modal.Header closeButton><Modal.Title>Détails de l'audit</Modal.Title></Modal.Header>
+      <SearchFilter
+        searchValue={searchValue}
+        onSearchChange={setSearchValue}
+        searchPlaceholder="Rechercher par utilisateur, référence…"
+        filters={[
+          {
+            key: 'action',
+            label: 'Action',
+            type: 'select',
+            options: [
+              { value: '', label: 'Toutes' },
+              { value: 'create', label: 'Création' },
+              { value: 'update', label: 'Modification' },
+              { value: 'delete', label: 'Suppression' },
+              { value: 'login', label: 'Connexion' },
+              { value: 'login_failed', label: 'Échec connexion' },
+              { value: 'validate', label: 'Validation' },
+              { value: 'cancel', label: 'Annulation' },
+              { value: 'reject', label: 'Rejet' },
+              { value: 'apply', label: 'Application remise' },
+              { value: 'publish', label: 'Publication' },
+              { value: 'calculate', label: 'Calcul résultats' },
+            ],
+          },
+          {
+            key: 'entity_type',
+            label: 'Entité',
+            type: 'select',
+            options: [
+              { value: '', label: 'Toutes' },
+              { value: 'user', label: 'Utilisateur' },
+              { value: 'etudiant', label: 'Étudiant' },
+              { value: 'inscription', label: 'Inscription' },
+              { value: 'facture', label: 'Facture' },
+              { value: 'paiement', label: 'Paiement' },
+              { value: 'remise', label: 'Remise' },
+              { value: 'note', label: 'Note' },
+              { value: 'examen', label: 'Examen' },
+              { value: 'deliberation', label: 'Délibération' },
+              { value: 'resultat', label: 'Résultat' },
+              { value: 'parametre', label: 'Paramètre système' },
+              { value: 'configuration', label: 'Configuration établissement' },
+              { value: 'configuration_deliberation', label: 'Config. délibération' },
+              { value: 'bareme', label: 'Barème' },
+              { value: 'mention', label: 'Mention' },
+              { value: 'template', label: 'Template document' },
+              { value: 'regle_calcul', label: 'Règle de calcul' },
+              { value: 'modele_email', label: 'Modèle email' },
+              { value: 'modele_sms', label: 'Modèle SMS' },
+              { value: 'pays', label: 'Pays' },
+              { value: 'presence', label: 'Présence' },
+              { value: 'stage', label: 'Stage' },
+              { value: 'filiere', label: 'Filière' },
+              { value: 'niveau', label: 'Niveau' },
+              { value: 'matiere', label: 'Matière' },
+              { value: 'departement', label: 'Département' },
+              { value: 'reservation_salle', label: 'Réservation salle' },
+              { value: 'document_etudiant', label: 'Document étudiant' },
+              { value: 'seance', label: 'Séance (EDT)' },
+              { value: 'soutenance', label: 'Soutenance' },
+              { value: 'rbac_permission', label: 'Permission RBAC' },
+              { value: 'backup', label: 'Sauvegarde' },
+              { value: 'system_log', label: 'Log système' },
+              { value: 'audit_event', label: 'Événement audit' },
+            ],
+          },
+        ]}
+        filterValues={filterValues}
+        onFilterChange={(key, value) =>
+          setFilterValues((prev) => ({ ...prev, [key]: value }))
+        }
+        onReset={() => {
+          setSearchValue('');
+          setFilterValues({});
+        }}
+      />
+
+      <DataCard title="Événements d'audit">
+        <DataTable
+          columns={columns}
+          data={events}
+          loading={loading}
+          emptyMessage="Aucun événement d'audit enregistré."
+        />
+      </DataCard>
+
+      <Modal show={showPurgeModal} onHide={() => setShowPurgeModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Purger l&apos;audit ancien</Modal.Title>
+        </Modal.Header>
         <Modal.Body>
-          {selectedEntry && (
-            <>
-              <Row className="mb-3">
-                <Col md={6}><p className="mb-1"><strong>Date:</strong></p><p className="text-muted">{selectedEntry.timestamp}</p></Col>
-                <Col md={6}><p className="mb-1"><strong>Utilisateur:</strong></p><p className="text-muted">{selectedEntry.utilisateur}</p></Col>
-              </Row>
-              <Row className="mb-3">
-                <Col md={6}><p className="mb-1"><strong>Action:</strong></p><p>{getActionBadge(selectedEntry.action)}</p></Col>
-                <Col md={6}><p className="mb-1"><strong>IP:</strong></p><p><code>{selectedEntry.ip}</code></p></Col>
-              </Row>
-              <Row className="mb-3">
-                <Col md={6}><p className="mb-1"><strong>Entité:</strong></p><p className="text-muted">{selectedEntry.entite}</p></Col>
-                <Col md={6}><p className="mb-1"><strong>ID:</strong></p><p><code>{selectedEntry.entiteId}</code></p></Col>
-              </Row>
-              <hr />
-              <Row>
-                <Col md={6}>
-                  <p className="mb-1"><strong>Ancienne valeur:</strong></p>
-                  <Card className="bg-light border-0"><Card.Body className="py-2"><small className="text-danger">{selectedEntry.ancienneValeur}</small></Card.Body></Card>
-                </Col>
-                <Col md={6}>
-                  <p className="mb-1"><strong>Nouvelle valeur:</strong></p>
-                  <Card className="bg-light border-0"><Card.Body className="py-2"><small className="text-success">{selectedEntry.nouvelleValeur}</small></Card.Body></Card>
-                </Col>
-              </Row>
-            </>
-          )}
+          <p>
+            Supprime définitivement les événements d&apos;audit plus anciens que la rétention
+            choisie.
+          </p>
+          <Form.Group className="mb-3">
+            <Form.Label>Rétention (jours minimum à conserver)</Form.Label>
+            <Form.Control
+              type="number"
+              min={1}
+              max={3650}
+              value={purgeDays}
+              onChange={(e) => setPurgeDays(Number(e.target.value))}
+            />
+            <Form.Text>Les événements antérieurs à {purgeDays} jours seront supprimés.</Form.Text>
+          </Form.Group>
+          <Form.Group>
+            <Form.Label>
+              Saisissez <code>PURGER</code> pour confirmer
+            </Form.Label>
+            <Form.Control
+              value={purgeConfirm}
+              onChange={(e) => setPurgeConfirm(e.target.value)}
+              placeholder="PURGER"
+              autoComplete="off"
+            />
+          </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>Fermer</Button>
+          <Button variant="secondary" onClick={() => setShowPurgeModal(false)}>
+            Annuler
+          </Button>
+          <Button
+            variant="danger"
+            disabled={purgeConfirm !== 'PURGER' || purging || purgeDays < 1}
+            onClick={handlePurge}
+          >
+            {purging ? 'Purge…' : 'Purger'}
+          </Button>
         </Modal.Footer>
       </Modal>
-    </Container>
+    </div>
   );
 };
 

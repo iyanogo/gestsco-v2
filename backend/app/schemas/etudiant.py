@@ -5,7 +5,9 @@ Schémas Pydantic pour l'entité Étudiant
 from datetime import date, datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import OptionalEmailEtablissement
 
 
 class EtudiantBase(BaseModel):
@@ -17,7 +19,7 @@ class EtudiantBase(BaseModel):
     lieu_naissance: Optional[str] = Field(None, max_length=255)
     sexe: Optional[str] = Field(None, max_length=255, description="Sexe (M/F ou MASCULIN/FEMININ)")
     nationalite: Optional[str] = Field(None, max_length=255)
-    email: Optional[EmailStr] = Field(None, description="Email de l'étudiant")
+    email: OptionalEmailEtablissement = Field(None, description="Email de l'étudiant")
     telephone: Optional[str] = Field(None, max_length=255)
     telephone_urgence: Optional[str] = Field(None, max_length=50)
     adresse: Optional[str] = Field(None, max_length=500)
@@ -59,7 +61,7 @@ class EtudiantUpdate(BaseModel):
     lieu_naissance: Optional[str] = Field(None, max_length=255)
     sexe: Optional[str] = Field(None, max_length=255)
     nationalite: Optional[str] = Field(None, max_length=255)
-    email: Optional[EmailStr] = None
+    email: OptionalEmailEtablissement = None
     telephone: Optional[str] = Field(None, max_length=255)
     telephone_urgence: Optional[str] = Field(None, max_length=50)
     adresse: Optional[str] = Field(None, max_length=500)

@@ -7,7 +7,7 @@ import {
   StatistiquesPaiements,
 } from '../types/finance';
 
-const BASE_URL = '/paiements-factures';
+const BASE_URL = '/api/v1/paiements-factures';
 
 export const paiementFactureService = {
   getPaiements: async (params?: {

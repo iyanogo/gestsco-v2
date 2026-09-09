@@ -14,19 +14,28 @@ import {
 } from '../pages/bootstrap/referentiel';
 import { 
   EtudiantsListPage, 
-  EtudiantDetailsPage, 
+  EtudiantDetailsPage,
+  EditEtudiantPage,
   NouvelEtudiantPage, 
   InscriptionsPage, 
   InscriptionGroupePage, 
   ReinscriptionsPage, 
-  DossiersPage 
+  DossiersPage,
+  InscriptionsMatieresPage,
 } from '../pages/bootstrap/etudiants';
-import { FacturesListPage, PaiementsListPage, TypesFraisPage } from '../pages/bootstrap/finances';
-import { EmploiTempsPage, SallesListPage, ReservationsPage } from '../pages/bootstrap/emploi-temps';
+import {
+  FacturesListPage,
+  NouvelleFacturePage,
+  PaiementsListPage,
+  TypesFraisPage,
+  RemisesListPage,
+  EcheanciersListPage,
+} from '../pages/bootstrap/finances';
+import { EmploiTempsPage, BatimentsListPage, SallesListPage, CreneauxListPage, ReservationsPage } from '../pages/bootstrap/emploi-temps';
 import { LogsPage, BackupPage, PermissionsPage, AuditPage } from '../pages/bootstrap/administration';
 import { SaisieNotesPage, ResultatsPage, ExamensPage, SessionsPage, DeliberationsPage } from '../pages/bootstrap/evaluations';
 // LoginPage importé dans App.tsx directement
-import { ParametresGenerauxPage, AnneesScolairesPage } from '../pages/bootstrap/parametrage';
+import { ParametresGenerauxPage, AnneesScolairesPage, BaremesPage, PaysConfigPage, ReglesCalculPage, ModelesCommunicationPage } from '../pages/bootstrap/parametrage';
 import { UtilisateursListPage } from '../pages/bootstrap/utilisateurs';
 import { EnseignantsListPage } from '../pages/bootstrap/enseignants';
 import { PresencesPage, StatistiquesPresencesPage } from '../pages/bootstrap/presences';
@@ -36,7 +45,29 @@ import GestionModulesPage from '../pages/admin/GestionModulesPage';
 import ConfigurationDeliberationPage from '../pages/admin/ConfigurationDeliberationPage';
 import StagesPage from '../pages/stages/StagesPage';
 import StageDetailPage from '../pages/stages/StageDetailPage';
+import NouveauStagePage from '../pages/stages/NouveauStagePage';
 import SoutenancesPage from '../pages/stages/SoutenancesPage';
+import StudentResultatsPage from '../pages/portail/StudentResultatsPage';
+import StudentEmploiTempsPage from '../pages/portail/StudentEmploiTempsPage';
+import StudentPresencesPage from '../pages/portail/StudentPresencesPage';
+import StudentProfilPage from '../pages/portail/StudentProfilPage';
+import StudentBulletinsPage from '../pages/portail/StudentBulletinsPage';
+import StudentRelevesPage from '../pages/portail/StudentRelevesPage';
+import StudentDocumentsPage from '../pages/portail/StudentDocumentsPage';
+import StudentDossierAdministratifPage from '../pages/portail/StudentDossierAdministratifPage';
+import StudentFinancesComptePage from '../pages/portail/StudentFinancesComptePage';
+import StudentFinancesFacturesPage from '../pages/portail/StudentFinancesFacturesPage';
+import StudentFinancesPaiementsPage from '../pages/portail/StudentFinancesPaiementsPage';
+import StudentStagesPage from '../pages/portail/StudentStagesPage';
+import TeacherCoursPage from '../pages/portail/TeacherCoursPage';
+import TeacherDocumentsPage from '../pages/portail/TeacherDocumentsPage';
+import TeacherEtudiantsPage from '../pages/portail/TeacherEtudiantsPage';
+import TeacherEmploiTempsPage from '../pages/portail/TeacherEmploiTempsPage';
+import TeacherPresencesPage from '../pages/portail/TeacherPresencesPage';
+import TeacherResultatsPage from '../pages/portail/TeacherResultatsPage';
+import TeacherSaisieNotesPage from '../pages/portail/TeacherSaisieNotesPage';
+import TeacherStagesPage from '../pages/portail/TeacherStagesPage';
+import AccountProfilePage from '../pages/bootstrap/account/AccountProfilePage';
 
 
 // Composant placeholder pour les pages non encore implémentées
@@ -60,6 +91,7 @@ const AdminRoutes: React.FC = () => {
       <Route element={<AdminLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
+        <Route path="profil" element={<AccountProfilePage />} />
         
         {/* Référentiel */}
         <Route path="referentiel/universites" element={<UniversitesListPage />} />
@@ -74,11 +106,13 @@ const AdminRoutes: React.FC = () => {
         
         {/* Étudiants */}
         <Route path="etudiants" element={<EtudiantsListPage />} />
-        <Route path="etudiants/:id" element={<EtudiantDetailsPage />} />
         <Route path="etudiants/nouveau" element={<NouvelEtudiantPage />} />
+        <Route path="etudiants/:id/edit" element={<EditEtudiantPage />} />
+        <Route path="etudiants/:id" element={<EtudiantDetailsPage />} />
         <Route path="etudiants/inscriptions" element={<InscriptionsPage />} />
         <Route path="etudiants/inscription-groupe" element={<InscriptionGroupePage />} />
         <Route path="etudiants/reinscriptions" element={<ReinscriptionsPage />} />
+        <Route path="etudiants/inscriptions-matieres" element={<InscriptionsMatieresPage />} />
         <Route path="etudiants/dossiers" element={<DossiersPage />} />
         
         {/* Enseignants */}
@@ -93,7 +127,9 @@ const AdminRoutes: React.FC = () => {
         
         {/* Emploi du temps */}
         <Route path="emploi-temps/planning" element={<EmploiTempsPage />} />
+        <Route path="emploi-temps/batiments" element={<BatimentsListPage />} />
         <Route path="emploi-temps/salles" element={<SallesListPage />} />
+        <Route path="emploi-temps/creneaux" element={<CreneauxListPage />} />
         <Route path="emploi-temps/reservations" element={<ReservationsPage />} />
         
         {/* Présences */}
@@ -102,8 +138,11 @@ const AdminRoutes: React.FC = () => {
         
         {/* Finances */}
         <Route path="finances/factures" element={<FacturesListPage />} />
+        <Route path="finances/factures/nouveau" element={<NouvelleFacturePage />} />
         <Route path="finances/paiements" element={<PaiementsListPage />} />
         <Route path="finances/types-frais" element={<TypesFraisPage />} />
+        <Route path="finances/remises" element={<RemisesListPage />} />
+        <Route path="finances/echeanciers" element={<EcheanciersListPage />} />
         
         {/* Documents */}
         <Route path="documents/liste" element={<DocumentsListPage />} />
@@ -112,6 +151,10 @@ const AdminRoutes: React.FC = () => {
         {/* Paramétrage */}
         <Route path="parametrage/parametres" element={<ParametresGenerauxPage />} />
         <Route path="parametrage/annees-scolaires" element={<AnneesScolairesPage />} />
+        <Route path="parametrage/baremes" element={<BaremesPage />} />
+        <Route path="parametrage/pays" element={<PaysConfigPage />} />
+        <Route path="parametrage/regles-calcul" element={<ReglesCalculPage />} />
+        <Route path="parametrage/modeles-communication" element={<ModelesCommunicationPage />} />
         
         {/* Utilisateurs */}
         <Route path="utilisateurs" element={<UtilisateursListPage />} />
@@ -129,6 +172,7 @@ const AdminRoutes: React.FC = () => {
         
         {/* Stages et Soutenances */}
         <Route path="stages" element={<StagesPage />} />
+        <Route path="stages/nouveau" element={<NouveauStagePage />} />
         <Route path="stages/:id" element={<StageDetailPage />} />
         <Route path="soutenances" element={<SoutenancesPage />} />
         
@@ -146,12 +190,19 @@ const TeacherRoutes: React.FC = () => {
       <Route element={<TeacherLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<TeacherDashboard />} />
-        <Route path="cours/*" element={<div className="p-4">Mes cours - À implémenter</div>} />
-        <Route path="emploi-temps" element={<div className="p-4">Mon emploi du temps - À implémenter</div>} />
-        <Route path="notes/*" element={<div className="p-4">Saisie des notes - À implémenter</div>} />
-        <Route path="presences/*" element={<div className="p-4">Gestion présences - À implémenter</div>} />
-        <Route path="etudiants" element={<div className="p-4">Mes étudiants - À implémenter</div>} />
-        <Route path="documents" element={<div className="p-4">Documents - À implémenter</div>} />
+        <Route path="profil" element={<AccountProfilePage />} />
+        <Route path="cours/*" element={<TeacherCoursPage />} />
+        <Route path="emploi-temps" element={<TeacherEmploiTempsPage />} />
+        <Route path="stages" element={<TeacherStagesPage />} />
+        <Route path="notes/historique" element={<TeacherResultatsPage />} />
+        <Route path="notes/saisie" element={<TeacherSaisieNotesPage />} />
+        <Route path="notes/*" element={<TeacherSaisieNotesPage />} />
+        <Route path="presences/appel" element={<TeacherPresencesPage />} />
+        <Route path="presences/historique" element={<TeacherPresencesPage />} />
+        <Route path="presences/*" element={<TeacherPresencesPage />} />
+        <Route path="resultats" element={<TeacherResultatsPage />} />
+        <Route path="etudiants" element={<TeacherEtudiantsPage />} />
+        <Route path="documents" element={<TeacherDocumentsPage />} />
       </Route>
     </Routes>
   );
@@ -164,14 +215,19 @@ const StudentRoutes: React.FC = () => {
       <Route element={<StudentLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<StudentDashboard />} />
-        <Route path="profil" element={<div className="p-4">Mon profil - À implémenter</div>} />
-        <Route path="notes" element={<div className="p-4">Mes notes - À implémenter</div>} />
-        <Route path="bulletins" element={<div className="p-4">Mes bulletins - À implémenter</div>} />
-        <Route path="releves" element={<div className="p-4">Relevés de notes - À implémenter</div>} />
-        <Route path="emploi-temps" element={<div className="p-4">Mon emploi du temps - À implémenter</div>} />
-        <Route path="presences" element={<div className="p-4">Mes présences - À implémenter</div>} />
-        <Route path="finances/*" element={<div className="p-4">Mes finances - À implémenter</div>} />
-        <Route path="documents/*" element={<div className="p-4">Mes documents - À implémenter</div>} />
+        <Route path="profil" element={<StudentProfilPage />} />
+        <Route path="notes" element={<StudentResultatsPage />} />
+        <Route path="bulletins" element={<StudentBulletinsPage />} />
+        <Route path="releves" element={<StudentRelevesPage />} />
+        <Route path="emploi-temps" element={<StudentEmploiTempsPage />} />
+        <Route path="presences" element={<StudentPresencesPage />} />
+        <Route path="stages" element={<StudentStagesPage />} />
+        <Route path="finances/compte" element={<StudentFinancesComptePage />} />
+        <Route path="finances/factures" element={<StudentFinancesFacturesPage />} />
+        <Route path="finances/paiements" element={<StudentFinancesPaiementsPage />} />
+        <Route path="finances/*" element={<StudentFinancesComptePage />} />
+        <Route path="documents/dossier" element={<StudentDossierAdministratifPage />} />
+        <Route path="documents" element={<StudentDocumentsPage />} />
       </Route>
     </Routes>
   );

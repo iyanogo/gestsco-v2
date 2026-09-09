@@ -19,7 +19,8 @@ def verifier_disponibilite_salle(
     date_check: date,
     heure_debut: time,
     heure_fin: time,
-    seance_id_exclue: Optional[int] = None
+    seance_id_exclue: Optional[int] = None,
+    reservation_id_exclue: Optional[int] = None,
 ) -> bool:
     """
     Vérifie si une salle est disponible sur un créneau donné.
@@ -31,6 +32,7 @@ def verifier_disponibilite_salle(
         heure_debut: Heure de début du créneau
         heure_fin: Heure de fin du créneau
         seance_id_exclue: ID de séance à exclure (pour les mises à jour)
+        reservation_id_exclue: ID de réservation approuvée à exclure (pour les mises à jour)
     
     Returns:
         True si la salle est disponible, False sinon
@@ -62,7 +64,10 @@ def verifier_disponibilite_salle(
         ReservationSalle.salle_id == salle_id,
         ReservationSalle.date_reservation == date_check,
         ReservationSalle.statut == "approuvee"
-    ).all()
+    )
+    if reservation_id_exclue:
+        reservations = reservations.filter(ReservationSalle.id != reservation_id_exclue)
+    reservations = reservations.all()
     
     for reservation in reservations:
         # Vérifier le chevauchement

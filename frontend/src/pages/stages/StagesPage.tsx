@@ -8,12 +8,15 @@ import { Row, Col, Card, Button, Badge, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../components/layouts';
 import { DataCard, DataTable, SearchFilter, Column } from '../../components/ui';
+import { usePermissions } from '../../hooks/usePermissions';
 import stageService from '../../services/stageService';
 import type { Stage } from '../../types/anneeAcademique';
 import { TYPES_STAGE, STATUTS_STAGE } from '../../types/anneeAcademique';
 
 const StagesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { canPerform } = usePermissions();
+  const canCreateStage = canPerform('stages', 'create');
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +150,7 @@ const StagesPage: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline-primary"
-            onClick={() => navigate(`/stages/${item.id}`)}
+            onClick={() => navigate(`/admin/stages/${item.id}`)}
           >
             <i className="bi bi-eye"></i>
           </Button>
@@ -183,10 +186,12 @@ const StagesPage: React.FC = () => {
           { label: 'Stages' }
         ]}
         actions={
-          <Button variant="primary" onClick={() => navigate('/stages/nouveau')}>
-            <i className="bi bi-plus-lg me-2"></i>
-            Nouveau stage
-          </Button>
+          canCreateStage ? (
+            <Button variant="primary" onClick={() => navigate('/admin/stages/nouveau')}>
+              <i className="bi bi-plus-lg me-2"></i>
+              Nouveau stage
+            </Button>
+          ) : undefined
         }
       />
 
@@ -265,7 +270,7 @@ const StagesPage: React.FC = () => {
           data={filteredStages}
           loading={loading}
           emptyMessage="Aucun stage trouvé"
-          onRowClick={(item) => navigate(`/stages/${item.id}`)}
+          onRowClick={(item) => navigate(`/admin/stages/${item.id}`)}
         />
       </DataCard>
     </div>

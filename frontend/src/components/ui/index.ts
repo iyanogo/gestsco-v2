@@ -7,6 +7,8 @@ export { default as StatusBadge } from './StatusBadge';
 export { default as DataTable } from './DataTable';
 export { default as SearchFilter } from './SearchFilter';
 export { default as ConfirmModal } from './ConfirmModal';
+export { default as PlannedFeatureBanner } from './PlannedFeatureBanner';
+export { default as PermissionGate } from './PermissionGate';
 
 export type { StatCardProps } from './StatCard';
 export type { DataCardProps } from './DataCard';
@@ -17,3 +19,5 @@ export type { StatusBadgeProps } from './StatusBadge';
 export type { Column, DataTableProps } from './DataTable';
 export type { FilterConfig, SearchFilterProps } from './SearchFilter';
 export type { ConfirmModalProps } from './ConfirmModal';
+export type { PlannedFeatureBannerProps } from './PlannedFeatureBanner';
+export type { PermissionGateProps } from './PermissionGate';

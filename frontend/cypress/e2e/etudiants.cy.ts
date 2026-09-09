@@ -1,141 +1,128 @@
-describe('Étudiants Management', () => {
+/**
+ * E2E Étudiants - sous-menus admin (liste, wizard, inscriptions, dossiers…).
+ * Compte : admin@gestsco.com / Admin@123
+ */
+
+const SUFFIX = Date.now().toString(36).slice(-6);
+const ACTION_SELECTOR = 'button, a.btn';
+
+describe('Étudiants - parcours admin', () => {
   beforeEach(() => {
     cy.login();
+  });
+
+  it('1 Liste - table, recherche, nouvel étudiant, export', () => {
     cy.visit('/admin/etudiants');
+    cy.contains(ACTION_SELECTOR, /Nouvel étudiant/i).should('be.visible');
+    cy.contains('button', /Exporter/i).should('be.visible');
+    cy.get('table', { timeout: 15000 }).should('be.visible');
+    cy.get('input[placeholder*="Rechercher"]').should('be.visible');
   });
 
-  describe('Students List', () => {
-    it('should display students list page', () => {
-      cy.contains(/étudiants|students/i).should('be.visible');
-    });
-
-    it('should display students table', () => {
-      cy.get('table').should('be.visible');
-      cy.get('tbody tr').should('have.length.greaterThan', 0);
-    });
-
-    it('should display search input', () => {
-      cy.get('input[placeholder*="echercher"]').should('be.visible');
-    });
-
-    it('should display add student button', () => {
-      cy.contains(/ajouter|nouveau|add/i).should('be.visible');
-    });
+  it('2 Liste - filtre recherche', () => {
+    cy.visit('/admin/etudiants');
+    cy.get('tbody tr', { timeout: 15000 }).should('have.length.greaterThan', 0);
+    cy.get('input[placeholder*="Rechercher"]').first().type('E2E');
+    cy.get('tbody tr').should('have.length.greaterThan', 0);
   });
 
-  describe('Search and Filter', () => {
-    it('should filter students by search term', () => {
-      cy.get('input[placeholder*="echercher"]').type('Diallo');
-      cy.get('tbody tr').should('contain', 'Diallo');
-    });
+  it('3 Nouvel étudiant - wizard création', () => {
+    const email = `e2e.${SUFFIX}@test.local`;
+    cy.visit('/admin/etudiants/nouveau');
+    cy.get('input[name="nom"]').type(`Nom${SUFFIX}`);
+    cy.get('input[name="prenom"]').type(`Prenom${SUFFIX}`);
+    cy.get('input[name="email"]').type(email);
+    cy.contains('button', /Suivant/i).click();
 
-    it('should show no results for non-matching search', () => {
-      cy.get('input[placeholder*="echercher"]').type('NonExistentName123');
-      cy.contains(/aucun|no result/i).should('be.visible');
+    cy.get('select[name="filiereId"]').then(($sel) => {
+      const val = $sel.find('option[value]:not([value=""])').first().val();
+      expect(val).to.exist;
+      cy.wrap($sel).select(String(val));
     });
-
-    it('should clear search and show all students', () => {
-      cy.get('input[placeholder*="echercher"]').type('Diallo');
-      cy.get('input[placeholder*="echercher"]').clear();
-      cy.get('tbody tr').should('have.length.greaterThan', 1);
+    cy.get('select[name="niveauId"]').then(($sel) => {
+      const val = $sel.find('option[value]:not([value=""])').first().val();
+      expect(val).to.exist;
+      cy.wrap($sel).select(String(val));
     });
+    cy.contains('button', /Suivant/i).click();
+    cy.contains('button', /Créer|Enregistrer/i).click();
+    cy.url({ timeout: 20000 }).should('match', /\/admin\/etudiants\/\d+/);
   });
 
-  describe('Add Student', () => {
-    it('should navigate to add student page', () => {
-      cy.contains(/ajouter|nouveau|add/i).click();
-      cy.url().should('include', '/nouveau');
+  it('4 Fiche étudiant - détail depuis la liste', () => {
+    cy.visit('/admin/etudiants');
+    cy.get('tbody tr', { timeout: 15000 }).first().within(() => {
+      cy.get('a.btn .bi-eye').click();
     });
-
-    it('should display add student form', () => {
-      cy.visit('/admin/etudiants/nouveau');
-      cy.get('form').should('be.visible');
-      cy.get('input[name="nom"]').should('be.visible');
-      cy.get('input[name="prenom"]').should('be.visible');
-    });
-
-    it('should create a new student', () => {
-      cy.visit('/admin/etudiants/nouveau');
-      
-      // Step 1: Personal info
-      cy.get('input[name="nom"]').type('TestNom');
-      cy.get('input[name="prenom"]').type('TestPrenom');
-      cy.get('input[name="email"]').type('test@email.com');
-      cy.get('input[name="dateNaissance"]').type('2000-01-01');
-      cy.contains(/suivant|next/i).click();
-      
-      // Step 2: Academic info
-      cy.get('select[name="filiere"]').select(1);
-      cy.get('select[name="niveau"]').select(1);
-      cy.contains(/suivant|next/i).click();
-      
-      // Step 3: Documents (skip)
-      cy.contains(/créer|create/i).click();
-      
-      cy.contains(/succès|success/i).should('be.visible');
-    });
+    cy.url().should('match', /\/admin\/etudiants\/\d+$/);
+    cy.contains(/Informations|Étudiant/i).should('be.visible');
+    cy.contains('.alert-info', /démonstration/i).should('not.exist');
   });
 
-  describe('View Student Details', () => {
-    it('should navigate to student details page', () => {
-      cy.get('tbody tr').first().click();
-      cy.url().should('match', /\/etudiants\/\d+/);
+  it('4b Fiche étudiant - onglets notes et paiements (API)', () => {
+    cy.visit('/admin/etudiants');
+    cy.get('tbody tr', { timeout: 15000 }).first().within(() => {
+      cy.get('a.btn .bi-eye').click();
     });
-
-    it('should display student information', () => {
-      cy.get('tbody tr').first().find('a').first().click();
-      cy.contains(/informations|details/i).should('be.visible');
-    });
+    cy.contains('button', /Notes/i).click();
+    cy.contains('.alert-info', /démonstration/i).should('not.exist');
+    cy.contains('button', /Paiements/i).click();
+    cy.contains('.alert-info', /démonstration/i).should('not.exist');
   });
 
-  describe('Edit Student', () => {
-    it('should open edit modal', () => {
-      cy.get('tbody tr').first().find('button').contains(/modifier|edit/i).click();
-      cy.get('.modal').should('be.visible');
+  it('4c Édition étudiant - formulaire depuis la fiche', () => {
+    cy.visit('/admin/etudiants');
+    cy.get('tbody tr', { timeout: 15000 }).first().within(() => {
+      cy.get('a.btn .bi-eye').click();
     });
-
-    it('should update student information', () => {
-      cy.get('tbody tr').first().find('button').contains(/modifier|edit/i).click();
-      cy.get('.modal input[name="nom"]').clear().type('UpdatedName');
-      cy.get('.modal button[type="submit"]').click();
-      cy.contains(/succès|success|updated/i).should('be.visible');
-    });
+    cy.contains('a', /Modifier/i).click();
+    cy.url().should('match', /\/admin\/etudiants\/\d+\/edit$/);
+    cy.get('input[name="nom"]').should('exist').and('not.have.value', '');
+    cy.get('input[name="prenom"]').should('exist').and('not.have.value', '');
+    cy.get('input[name="email"]').should('exist').and('not.have.value', '');
   });
 
-  describe('Delete Student', () => {
-    it('should show confirmation dialog', () => {
-      cy.get('tbody tr').first().find('button').contains(/supprimer|delete/i).click();
-      cy.contains(/confirmer|confirm/i).should('be.visible');
-    });
-
-    it('should delete student on confirmation', () => {
-      cy.get('tbody tr').first().find('button').contains(/supprimer|delete/i).click();
-      cy.get('.modal button').contains(/confirmer|confirm|oui|yes/i).click();
-      cy.contains(/supprimé|deleted/i).should('be.visible');
-    });
-
-    it('should cancel deletion', () => {
-      const initialCount = Cypress.$('tbody tr').length;
-      cy.get('tbody tr').first().find('button').contains(/supprimer|delete/i).click();
-      cy.get('.modal button').contains(/annuler|cancel|non|no/i).click();
-      cy.get('tbody tr').should('have.length', initialCount);
-    });
+  it('5 Inscriptions - page charge sans erreur', () => {
+    cy.visit('/admin/etudiants/inscriptions');
+    cy.contains('h2', 'Inscriptions').should('be.visible');
+    cy.get('table', { timeout: 15000 }).should('be.visible');
+    cy.contains('.alert-danger', /Impossible|erreur/i).should('not.exist');
   });
 
-  describe('Pagination', () => {
-    it('should display pagination controls', () => {
-      cy.get('[data-testid="pagination"]').should('be.visible');
-    });
-
-    it('should navigate to next page', () => {
-      cy.get('[data-testid="next-page"]').click();
-      cy.url().should('include', 'page=2');
-    });
+  it('6 Inscription groupe - wizard étape 1', () => {
+    cy.visit('/admin/etudiants/inscription-groupe');
+    cy.contains('h2', 'Inscription en groupe').should('be.visible');
+    cy.get('select').should('have.length.greaterThan', 0);
   });
 
-  describe('Export', () => {
-    it('should have export button', () => {
-      cy.contains(/exporter|export/i).should('be.visible');
-    });
+  it('7 Inscriptions matières - sélection inscription', () => {
+    cy.visit('/admin/etudiants/inscriptions-matieres');
+    cy.contains('h2', 'Inscriptions aux matières').should('be.visible');
+    cy.get('select, form select', { timeout: 15000 }).should('exist');
+  });
+
+  it('8 Réinscriptions - page charge', () => {
+    cy.visit('/admin/etudiants/reinscriptions');
+    cy.contains('h2', 'Réinscriptions').should('be.visible');
+    cy.get('table, .alert', { timeout: 15000 }).should('exist');
+  });
+
+  it('9 Dossiers administratifs - page charge', () => {
+    cy.visit('/admin/etudiants/dossiers');
+    cy.contains('h2', 'Dossiers administratifs').should('be.visible');
+    cy.get('table', { timeout: 15000 }).should('be.visible');
+  });
+
+  it('10 Scolarité - accès liste OK ; enseignant refusé', () => {
+    cy.clearLocalStorage();
+    cy.visit('/login');
+    cy.intercept('POST', '**/api/v1/auth/login').as('loginSco');
+    cy.get('input[type="email"]').clear().type('scolarite@gestsco.com');
+    cy.get('input[type="password"]').clear().type('Scolarite@123');
+    cy.get('button[type="submit"]').click();
+    cy.wait('@loginSco');
+    cy.visit('/admin/etudiants');
+    cy.url({ timeout: 10000 }).should('include', '/admin/etudiants');
+    cy.contains(ACTION_SELECTOR, /Nouvel étudiant/i).should('be.visible');
   });
 });

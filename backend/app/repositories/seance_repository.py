@@ -141,54 +141,81 @@ class SeanceRepository(BaseRepository[Seance, SeanceCreate, SeanceUpdate]):
         date_fin = date_debut + timedelta(days=6)
         return self.get_by_periode(db, date_debut, date_fin, niveau_id, filiere_id)
 
+    def _validate_planning(
+        self,
+        db: Session,
+        *,
+        date_seance: date,
+        creneau_id: int,
+        salle_id: Optional[int],
+        enseignant_id: int,
+        niveau_id: int,
+        filiere_id: Optional[int],
+        seance_id_exclue: Optional[int] = None,
+    ) -> list[str]:
+        """Vérifie salle, enseignant et niveau/filière sur un créneau."""
+        errors: list[str] = []
+
+        creneau = db.query(CreneauHoraire).filter(
+            CreneauHoraire.id == creneau_id
+        ).first()
+        if not creneau:
+            return ["Créneau horaire non trouvé"]
+
+        if salle_id:
+            if not verifier_disponibilite_salle(
+                db,
+                salle_id,
+                date_seance,
+                creneau.heure_debut,
+                creneau.heure_fin,
+                seance_id_exclue=seance_id_exclue,
+            ):
+                errors.append("La salle n'est pas disponible sur ce créneau")
+
+        if not verifier_disponibilite_enseignant(
+            db,
+            enseignant_id,
+            date_seance,
+            creneau_id,
+            seance_id_exclue=seance_id_exclue,
+        ):
+            errors.append("L'enseignant n'est pas disponible sur ce créneau")
+
+        if not verifier_conflit_niveau(
+            db,
+            niveau_id,
+            filiere_id,
+            date_seance,
+            creneau_id,
+            seance_id_exclue=seance_id_exclue,
+        ):
+            errors.append("Un conflit existe pour ce niveau/filière sur ce créneau")
+
+        return errors
+
     def create_with_verification(
         self,
         db: Session,
         seance_create: SeanceCreate
     ) -> Union[Seance, dict]:
         """Crée une séance après vérification des disponibilités"""
-        errors = []
-        
-        # Récupérer le créneau pour avoir les heures
+        errors = self._validate_planning(
+            db,
+            date_seance=seance_create.date_seance,
+            creneau_id=seance_create.creneau_id,
+            salle_id=seance_create.salle_id,
+            enseignant_id=seance_create.enseignant_id,
+            niveau_id=seance_create.niveau_id,
+            filiere_id=seance_create.filiere_id,
+        )
+
+        if errors:
+            return {"errors": errors}
+
         creneau = db.query(CreneauHoraire).filter(
             CreneauHoraire.id == seance_create.creneau_id
         ).first()
-        
-        if not creneau:
-            return {"errors": ["Créneau horaire non trouvé"]}
-        
-        # Vérifier disponibilité de la salle
-        if seance_create.salle_id:
-            if not verifier_disponibilite_salle(
-                db,
-                seance_create.salle_id,
-                seance_create.date_seance,
-                creneau.heure_debut,
-                creneau.heure_fin
-            ):
-                errors.append("La salle n'est pas disponible sur ce créneau")
-        
-        # Vérifier disponibilité de l'enseignant
-        if not verifier_disponibilite_enseignant(
-            db,
-            seance_create.enseignant_id,
-            seance_create.date_seance,
-            seance_create.creneau_id
-        ):
-            errors.append("L'enseignant n'est pas disponible sur ce créneau")
-        
-        # Vérifier conflit de niveau/filière
-        if not verifier_conflit_niveau(
-            db,
-            seance_create.niveau_id,
-            seance_create.filiere_id,
-            seance_create.date_seance,
-            seance_create.creneau_id
-        ):
-            errors.append("Un conflit existe pour ce niveau/filière sur ce créneau")
-        
-        if errors:
-            return {"errors": errors}
         
         # Générer le code de la séance
         from app.models.matiere import Matiere
@@ -208,6 +235,60 @@ class SeanceRepository(BaseRepository[Seance, SeanceCreate, SeanceUpdate]):
         db.commit()
         db.refresh(seance)
         
+        return seance
+
+    def update_with_verification(
+        self,
+        db: Session,
+        seance_id: int,
+        seance_update: SeanceUpdate,
+    ) -> Union[Seance, dict]:
+        """Met à jour une séance avec validation des conflits si le planning change."""
+        seance = self.get_by_id(db, seance_id)
+        if not seance:
+            return {"errors": ["Séance non trouvée"]}
+
+        update_data = seance_update.model_dump(exclude_unset=True)
+
+        planning_fields = {
+            "date_seance",
+            "creneau_id",
+            "salle_id",
+            "enseignant_id",
+            "niveau_id",
+            "filiere_id",
+        }
+        planning_changed = bool(planning_fields.intersection(update_data.keys()))
+
+        merged_date = update_data.get("date_seance", seance.date_seance)
+        merged_creneau_id = update_data.get("creneau_id", seance.creneau_id)
+        merged_salle_id = update_data.get("salle_id", seance.salle_id)
+        merged_enseignant_id = update_data.get("enseignant_id", seance.enseignant_id)
+        merged_niveau_id = update_data.get("niveau_id", seance.niveau_id)
+        merged_filiere_id = update_data.get("filiere_id", seance.filiere_id)
+
+        if planning_changed:
+            errors = self._validate_planning(
+                db,
+                date_seance=merged_date,
+                creneau_id=merged_creneau_id,
+                salle_id=merged_salle_id,
+                enseignant_id=merged_enseignant_id,
+                niveau_id=merged_niveau_id,
+                filiere_id=merged_filiere_id,
+                seance_id_exclue=seance_id,
+            )
+            if errors:
+                return {"errors": errors}
+
+        if "date_seance" in update_data:
+            update_data["jour_semaine"] = get_jour_semaine(update_data["date_seance"])
+
+        for key, value in update_data.items():
+            setattr(seance, key, value)
+
+        db.commit()
+        db.refresh(seance)
         return seance
 
     def create_recurrente(

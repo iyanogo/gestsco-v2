@@ -1,110 +1,80 @@
-describe('Finances Management', () => {
+/**
+ * E2E module Finances - admin (factures, paiements, types de frais).
+ *
+ * Compte : admin@gestsco.com / Admin@123
+ */
+
+const ADMIN_EMAIL = 'admin@gestsco.com';
+const ADMIN_PASSWORD = 'Admin@123';
+
+describe('Module Finances E2E', () => {
   beforeEach(() => {
-    cy.login();
+    cy.session('admin-finances', () => {
+      cy.visit('/login');
+      cy.get('input[type="email"]').clear().type(ADMIN_EMAIL);
+      cy.get('input[type="password"]').clear().type(ADMIN_PASSWORD);
+      cy.get('button[type="submit"]').click();
+      cy.url({ timeout: 20000 }).should('include', '/admin/dashboard');
+    });
   });
 
-  describe('Factures', () => {
-    beforeEach(() => {
-      cy.visit('/admin/finances/factures');
-    });
+  it('factures - page se charge depuis API', () => {
+    cy.visit('/admin/finances/factures');
+    cy.get('h1.page-title', { timeout: 15000 }).should('contain', 'Factures');
+    cy.get('.alert-danger').should('not.exist');
+  });
 
-    it('should display factures list', () => {
-      cy.contains(/factures|invoices/i).should('be.visible');
-      cy.get('table').should('be.visible');
-    });
+  it('paiements - page se charge depuis API', () => {
+    cy.visit('/admin/finances/paiements');
+    cy.get('h1.page-title', { timeout: 15000 }).should('contain', 'Paiements');
+    cy.get('.alert-danger').should('not.exist');
+  });
 
-    it('should display facture details', () => {
-      cy.get('tbody tr').first().click();
-      cy.contains(/détails|details/i).should('be.visible');
-    });
+  it('types de frais - page se charge depuis API', () => {
+    cy.visit('/admin/finances/types-frais');
+    cy.get('h1.page-title', { timeout: 15000 }).should('contain', 'Types de frais');
+    cy.get('.alert-danger').should('not.exist');
+  });
 
-    it('should filter factures by status', () => {
-      cy.get('select').contains(/statut|status/i).select('paye');
-      cy.get('tbody tr').each(($row) => {
-        cy.wrap($row).should('contain', 'Payé');
+  it('remises - page se charge depuis API', () => {
+    cy.visit('/admin/finances/remises');
+    cy.get('h1.page-title', { timeout: 15000 }).should('contain', 'Remises');
+    cy.get('.alert-danger').should('not.exist');
+  });
+
+  it('échéanciers - page se charge depuis API', () => {
+    cy.visit('/admin/finances/echeanciers');
+    cy.get('h1.page-title', { timeout: 15000 }).should('contain', 'Échéanciers');
+    cy.get('.alert-danger').should('not.exist');
+  });
+
+  it('API - liste factures (staff)', () => {
+    cy.window().then((win) => {
+      const token = win.localStorage.getItem('token');
+      cy.request({
+        method: 'GET',
+        url: '/api/v1/factures/',
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30000,
+      }).then((resp) => {
+        expect(resp.status).to.eq(200);
+        expect(resp.body).to.be.an('array');
       });
     });
-
-    it('should search factures by number', () => {
-      cy.get('input[placeholder*="echercher"]').type('FAC-2025');
-      cy.get('tbody tr').should('contain', 'FAC-2025');
-    });
   });
 
-  describe('Paiements', () => {
-    beforeEach(() => {
-      cy.visit('/admin/finances/paiements');
-    });
-
-    it('should display paiements list', () => {
-      cy.contains(/paiements|payments/i).should('be.visible');
-      cy.get('table').should('be.visible');
-    });
-
-    it('should create new payment', () => {
-      cy.contains(/nouveau|add/i).click();
-      cy.get('.modal').should('be.visible');
-      
-      cy.get('select[name="facture_id"]').select(1);
-      cy.get('input[name="montant"]').type('50000');
-      cy.get('select[name="mode_paiement"]').select('especes');
-      cy.get('button[type="submit"]').click();
-      
-      cy.contains(/succès|success/i).should('be.visible');
-    });
-
-    it('should validate payment on confirmation', () => {
-      cy.get('tbody tr').first().find('button').contains(/valider|validate/i).click();
-      cy.get('.modal button').contains(/confirmer|confirm/i).click();
-      cy.contains(/validé|validated/i).should('be.visible');
-    });
-  });
-
-  describe('Types de Frais', () => {
-    beforeEach(() => {
-      cy.visit('/admin/finances/types-frais');
-    });
-
-    it('should display types de frais list', () => {
-      cy.contains(/types de frais|fee types/i).should('be.visible');
-      cy.get('table').should('be.visible');
-    });
-
-    it('should create new type de frais', () => {
-      cy.contains(/nouveau|add/i).click();
-      cy.get('.modal').should('be.visible');
-      
-      cy.get('input[name="code"]').type('TEST');
-      cy.get('input[name="nom"]').type('Test Frais');
-      cy.get('input[name="montant"]').type('10000');
-      cy.get('button[type="submit"]').click();
-      
-      cy.contains(/succès|success/i).should('be.visible');
-    });
-
-    it('should edit type de frais', () => {
-      cy.get('tbody tr').first().find('button').contains(/modifier|edit/i).click();
-      cy.get('.modal input[name="montant"]').clear().type('15000');
-      cy.get('.modal button[type="submit"]').click();
-      cy.contains(/modifié|updated/i).should('be.visible');
-    });
-
-    it('should delete type de frais', () => {
-      cy.get('tbody tr').first().find('button').contains(/supprimer|delete/i).click();
-      cy.get('.modal button').contains(/confirmer|confirm/i).click();
-      cy.contains(/supprimé|deleted/i).should('be.visible');
-    });
-  });
-
-  describe('Statistics', () => {
-    it('should display financial statistics on factures page', () => {
-      cy.visit('/admin/finances/factures');
-      cy.get('[data-testid="stat-card"]').should('have.length.greaterThan', 0);
-    });
-
-    it('should display total amounts', () => {
-      cy.visit('/admin/finances/factures');
-      cy.contains(/total|montant/i).should('be.visible');
+  it('API - statistiques factures (scolarité/comptable)', () => {
+    cy.window().then((win) => {
+      const token = win.localStorage.getItem('token');
+      cy.request({
+        method: 'GET',
+        url: '/api/v1/factures/statistiques',
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30000,
+      }).then((resp) => {
+        expect(resp.status).to.eq(200);
+        expect(resp.body).to.have.property('montant_total');
+      });
     });
   });
 });

@@ -45,6 +45,15 @@ export const authService = {
     return response.data;
   },
 
+  async getPermissionsMatrix(): Promise<
+    Array<{ module: string; action: string; roles: string[] }>
+  > {
+    const response = await api.get<
+      Array<{ module: string; action: string; roles: string[] }>
+    >('/api/v1/auth/permissions-matrix');
+    return response.data;
+  },
+
   async updateProfile(data: Partial<User>): Promise<User> {
     const response = await api.put<User>('/api/v1/auth/me', data);
     return response.data;

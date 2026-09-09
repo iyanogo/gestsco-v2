@@ -10,7 +10,7 @@ import {
   StatistiquesDeliberation,
 } from '../types/evaluation';
 
-const BASE_URL = '/deliberations';
+const BASE_URL = '/api/v1/deliberations';
 
 export interface DeliberationParams {
   skip?: number;

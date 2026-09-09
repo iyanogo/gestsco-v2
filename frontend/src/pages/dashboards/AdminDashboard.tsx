@@ -119,7 +119,7 @@ const AdminDashboard: React.FC = () => {
           <DataCard
             title="Inscriptions récentes"
             actions={
-              <Link to="/etudiants/inscriptions" className="btn btn-sm btn-outline-primary">
+              <Link to="/admin/etudiants/inscriptions" className="btn btn-sm btn-outline-primary">
                 Voir tout
               </Link>
             }
@@ -186,7 +186,7 @@ const AdminDashboard: React.FC = () => {
           <DataCard
             title="Derniers paiements"
             actions={
-              <Link to="/finances/paiements" className="btn btn-sm btn-outline-primary">
+              <Link to="/admin/finances/paiements" className="btn btn-sm btn-outline-primary">
                 Voir tout
               </Link>
             }
@@ -210,7 +210,7 @@ const AdminDashboard: React.FC = () => {
           <DataCard title="Actions rapides">
             <Row className="g-3">
               <Col xs={6}>
-                <Link to="/etudiants/inscriptions/nouveau" className="text-decoration-none">
+                <Link to="/admin/etudiants/nouveau" className="text-decoration-none">
                   <Card className="h-100 border-0 bg-light text-center p-3 hover-shadow">
                     <div className="mb-2">
                       <i className="bi bi-person-plus fs-2 text-primary"></i>
@@ -220,7 +220,7 @@ const AdminDashboard: React.FC = () => {
                 </Link>
               </Col>
               <Col xs={6}>
-                <Link to="/evaluations/notes" className="text-decoration-none">
+                <Link to="/admin/evaluations/notes" className="text-decoration-none">
                   <Card className="h-100 border-0 bg-light text-center p-3 hover-shadow">
                     <div className="mb-2">
                       <i className="bi bi-pencil-square fs-2 text-success"></i>
@@ -230,7 +230,7 @@ const AdminDashboard: React.FC = () => {
                 </Link>
               </Col>
               <Col xs={6}>
-                <Link to="/finances/factures/nouveau" className="text-decoration-none">
+                <Link to="/admin/finances/factures/nouveau" className="text-decoration-none">
                   <Card className="h-100 border-0 bg-light text-center p-3 hover-shadow">
                     <div className="mb-2">
                       <i className="bi bi-receipt fs-2 text-warning"></i>
@@ -240,7 +240,7 @@ const AdminDashboard: React.FC = () => {
                 </Link>
               </Col>
               <Col xs={6}>
-                <Link to="/emploi-temps/planning" className="text-decoration-none">
+                <Link to="/admin/emploi-temps/planning" className="text-decoration-none">
                   <Card className="h-100 border-0 bg-light text-center p-3 hover-shadow">
                     <div className="mb-2">
                       <i className="bi bi-calendar-week fs-2 text-info"></i>

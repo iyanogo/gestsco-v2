@@ -4,13 +4,17 @@ Endpoints API pour la gestion des notes
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_active_user
-from app.core.permissions import get_current_scolarite_user
+from app.utils.rbac_resolver import require_permission
+from app.core.portal_access import assert_etudiant_owner, resolve_etudiant_id
 from app.models.user import User
 from app.repositories import note_repository, examen_repository, etudiant_repository
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import note_snapshot
+from app.utils.teacher_notes_access import assert_can_read_or_write_examen_notes
 from app.schemas.note import (
     Note,
     NoteCreate,
@@ -43,6 +47,17 @@ async def list_notes(
     return note_repository.get_all(db, skip=skip, limit=limit)
 
 
+@router.get("/mes-notes", response_model=list[Note], summary="Mes notes (portail étudiant)")
+async def get_mes_notes(
+    session_id: Optional[int] = Query(None, description="Filtrer par session"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Notes de l'étudiant connecté."""
+    etudiant_id = resolve_etudiant_id(db, current_user)
+    return note_repository.get_by_etudiant(db, etudiant_id, session_id=session_id)
+
+
 @router.get("/examen/{examen_id}", summary="Notes d'un examen")
 async def get_notes_examen(
     examen_id: int,
@@ -58,6 +73,10 @@ async def get_notes_examen(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Examen non trouvé"
         )
+
+    assert_can_read_or_write_examen_notes(
+        db, current_user, examen, require_session_open=False
+    )
     
     notes = note_repository.get_by_examen_with_etudiant(db, examen_id)
     
@@ -107,6 +126,8 @@ async def get_notes_etudiant(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Étudiant non trouvé"
         )
+
+    assert_etudiant_owner(current_user, etudiant_id, db)
     
     return note_repository.get_by_etudiant(db, etudiant_id, session_id=session_id)
 
@@ -115,7 +136,7 @@ async def get_notes_etudiant(
 async def get_notes_non_validees(
     examen_id: Optional[int] = Query(None, description="Filtrer par examen"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_notes", "read")),
 ):
     """
     Récupère les notes non validées.
@@ -140,18 +161,32 @@ async def get_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note non trouvée"
         )
+    examen = examen_repository.get_by_id(db, note.examen_id)
+    if examen:
+        assert_can_read_or_write_examen_notes(
+            db, current_user, examen, require_session_open=False
+        )
     return note
 
 
 @router.post("/", response_model=Note, status_code=status.HTTP_201_CREATED, summary="Créer une note")
 async def create_note(
     note_in: NoteCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
     Crée une nouvelle note.
     """
+    examen = examen_repository.get_by_id(db, note_in.examen_id)
+    if not examen:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Examen non trouvé",
+        )
+    assert_can_read_or_write_examen_notes(db, current_user, examen)
+
     # Vérifier si une note existe déjà pour cet examen et cet étudiant
     existing = note_repository.get_note_examen_etudiant(
         db, note_in.examen_id, note_in.etudiant_id
@@ -161,21 +196,41 @@ async def create_note(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Une note existe déjà pour cet étudiant et cet examen"
         )
-    
+
     # Créer la note avec l'ID de l'utilisateur courant
     notes = note_repository.create_bulk(db, [note_in.model_dump()], current_user.id)
-    return notes[0] if notes else None
+    created = notes[0] if notes else None
+    if created:
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="note",
+            entity_id=created.id,
+            new_values=note_snapshot(created),
+        )
+    return created
 
 
 @router.post("/bulk", summary="Créer plusieurs notes")
 async def create_notes_bulk(
     bulk_data: NoteBulkCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
     Crée plusieurs notes en une fois.
     """
+    examen = examen_repository.get_by_id(db, bulk_data.examen_id)
+    if not examen:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Examen non trouvé",
+        )
+    assert_can_read_or_write_examen_notes(db, current_user, examen)
+
     # Préparer les données
     notes_data = []
     for item in bulk_data.notes:
@@ -185,7 +240,18 @@ async def create_notes_bulk(
     
     # Créer les notes
     created_notes = note_repository.create_bulk(db, notes_data, current_user.id)
-    
+    if created_notes:
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="note",
+            entity_id=bulk_data.examen_id,
+            new_values={"count": len(created_notes), "examen_id": bulk_data.examen_id},
+            details="bulk",
+        )
+
     return {
         "message": f"{len(created_notes)} notes créées avec succès",
         "count": len(created_notes),
@@ -197,6 +263,7 @@ async def create_notes_bulk(
 async def update_note(
     note_id: int,
     note_in: NoteUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -209,6 +276,10 @@ async def update_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note non trouvée"
         )
+
+    examen = examen_repository.get_by_id(db, note.examen_id)
+    if examen:
+        assert_can_read_or_write_examen_notes(db, current_user, examen)
     
     # Si la note est validée, seul un admin peut la modifier
     if note.is_valide and current_user.role not in ("admin", "superuser"):
@@ -217,18 +288,30 @@ async def update_note(
             detail="Cette note est validée et ne peut plus être modifiée"
         )
     
-    # Mettre à jour la note
+    old_snapshot = note_snapshot(note)
     if note_in.note is not None:
-        return note_repository.update_note(db, note_id, note_in.note, current_user.id)
-    
-    return note_repository.update(db, note_id, note_in)
+        updated = note_repository.update_note(db, note_id, note_in.note, current_user.id)
+    else:
+        updated = note_repository.update(db, note_id, note_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="note",
+        entity_id=note_id,
+        old_values=old_snapshot,
+        new_values=note_snapshot(updated),
+    )
+    return updated
 
 
 @router.patch("/examen/{examen_id}/valider", summary="Valider les notes d'un examen")
 async def valider_notes_examen(
     examen_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_notes", "validate")),
 ):
     """
     Valide toutes les notes d'un examen.
@@ -243,7 +326,17 @@ async def valider_notes_examen(
         )
     
     notes_validees = note_repository.valider_notes_examen(db, examen_id, current_user.id)
-    
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="validate",
+        entity_type="note",
+        entity_id=examen_id,
+        new_values={"count": len(notes_validees), "examen_id": examen_id},
+        details="examen",
+    )
+
     return {
         "message": f"{len(notes_validees)} notes validées avec succès",
         "count": len(notes_validees)
@@ -253,8 +346,9 @@ async def valider_notes_examen(
 @router.delete("/{note_id}", summary="Supprimer une note")
 async def delete_note(
     note_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_notes", "delete")),
 ):
     """
     Supprime une note.
@@ -275,10 +369,20 @@ async def delete_note(
             detail="Cette note est validée et ne peut pas être supprimée"
         )
     
+    old_snapshot = note_snapshot(note)
     success = note_repository.hard_delete(db, note_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note non trouvée"
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="note",
+        entity_id=note_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Note supprimée avec succès"}

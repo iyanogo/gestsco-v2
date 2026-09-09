@@ -14,6 +14,8 @@ from app.models.emploi_temps import EmploiTemps
 from app.models.creneau_horaire import CreneauHoraire
 from app.repositories.emploi_temps_repository import emploi_temps_repository
 from app.utils.emploi_temps_utils import get_jour_semaine_label, JOURS_SEMAINE_LABELS
+from app.utils.pdf_formatters import format_date_fr, format_seance_edt_cell
+from app.utils.pdf_generator import build_reportlab_pdf, create_body_style, create_subtitle_style, create_title_style
 
 
 def generer_emploi_temps_pdf(db: Session, emploi_temps_id: int) -> bytes:
@@ -29,55 +31,29 @@ def generer_emploi_temps_pdf(db: Session, emploi_temps_id: int) -> bytes:
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
     
-    # Récupérer l'emploi du temps avec les séances
     data = emploi_temps_repository.get_with_seances(db, emploi_temps_id)
     if not data:
         raise ValueError("Emploi du temps non trouvé")
     
-    # Récupérer les créneaux
     creneaux = db.query(CreneauHoraire).filter(
         CreneauHoraire.is_active == True
     ).order_by(CreneauHoraire.ordre).all()
     
-    # Créer le buffer PDF
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=landscape(A4),
-        rightMargin=1*cm,
-        leftMargin=1*cm,
-        topMargin=1*cm,
-        bottomMargin=1*cm
-    )
-    
     elements = []
     styles = getSampleStyleSheet()
     
-    # Titre
-    title_style = ParagraphStyle(
-        'Title',
-        parent=styles['Heading1'],
-        alignment=TA_CENTER,
-        fontSize=16,
-        spaceAfter=20
-    )
+    title_style = create_title_style(font_size=16)
     elements.append(Paragraph(f"Emploi du Temps - {data['libelle']}", title_style))
     
-    # Sous-titre avec période
-    subtitle_style = ParagraphStyle(
-        'Subtitle',
-        parent=styles['Normal'],
-        alignment=TA_CENTER,
-        fontSize=10,
-        spaceAfter=20
-    )
+    subtitle_style = create_subtitle_style(font_size=10)
+    date_debut = format_date_fr(data["date_debut"])
+    date_fin = format_date_fr(data["date_fin"])
     elements.append(Paragraph(
-        f"Semestre {data['semestre']} - Du {data['date_debut']} au {data['date_fin']}",
+        f"Semestre {data['semestre']} - Du {date_debut} au {date_fin}",
         subtitle_style
     ))
     elements.append(Spacer(1, 0.5*cm))
@@ -104,10 +80,7 @@ def generer_emploi_temps_pdf(db: Session, emploi_temps_id: int) -> bytes:
                 seances = seances_par_creneau_jour[key]
                 cell_content = []
                 for s in seances:
-                    matiere = s.get("matiere_code", "")
-                    salle = s.get("salle_code", "")
-                    type_s = s.get("type_seance", "")[:2].upper()
-                    cell_content.append(f"{matiere}\n{type_s} - {salle}")
+                    cell_content.append(format_seance_edt_cell(s))
                 row.append("\n".join(cell_content))
             else:
                 row.append("")
@@ -136,14 +109,17 @@ def generer_emploi_temps_pdf(db: Session, emploi_temps_id: int) -> bytes:
     
     # Légende
     elements.append(Spacer(1, 1*cm))
-    legend_style = ParagraphStyle('Legend', parent=styles['Normal'], fontSize=8)
+    legend_style = create_body_style(font_size=8)
     elements.append(Paragraph("Légende: CO=Cours, TD=Travaux Dirigés, TP=Travaux Pratiques", legend_style))
     
-    # Générer le PDF
-    doc.build(elements)
-    
-    buffer.seek(0)
-    return buffer.getvalue()
+    return build_reportlab_pdf(
+        elements,
+        pagesize=landscape(A4),
+        top_margin=1*cm,
+        bottom_margin=1*cm,
+        left_margin=1*cm,
+        right_margin=1*cm,
+    )
 
 
 def generer_emploi_temps_excel(db: Session, emploi_temps_id: int) -> bytes:
@@ -196,7 +172,7 @@ def generer_emploi_temps_excel(db: Session, emploi_temps_id: int) -> bytes:
     
     # Sous-titre
     ws.merge_cells('A2:G2')
-    ws['A2'] = f"Semestre {data['semestre']} - Du {data['date_debut']} au {data['date_fin']}"
+    ws['A2'] = f"Semestre {data['semestre']} - Du {format_date_fr(data['date_debut'])} au {format_date_fr(data['date_fin'])}"
     ws['A2'].alignment = center_align
     
     # En-tête
@@ -234,10 +210,7 @@ def generer_emploi_temps_excel(db: Session, emploi_temps_id: int) -> bytes:
                 seances = seances_par_creneau_jour[key]
                 content = []
                 for s in seances:
-                    matiere = s.get("matiere_code", "")
-                    salle = s.get("salle_code", "")
-                    type_s = s.get("type_seance", "")
-                    content.append(f"{matiere} ({type_s})\n{salle}")
+                    content.append(format_seance_edt_cell(s))
                 cell.value = "\n".join(content)
             
             cell.alignment = center_align

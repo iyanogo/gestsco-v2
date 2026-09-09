@@ -1,0 +1,22 @@
+---
+description: Utiliser le tiret ASCII (-) partout, jamais le tiret cadratin (—) ni demi-cadratin (–)
+alwaysApply: true
+---
+
+# Typographie - tirets
+
+Dans tout le projet GestSco v2 :
+
+- **Tiret ASCII `-`** (U+002D) pour les séparateurs de texte, cellules vides, commentaires et documentation.
+- **Ne pas utiliser** le tiret cadratin `—` (U+2014) ni le demi-cadratin `–` (U+2013).
+
+Exemples :
+
+| Contexte | Correct | Incorrect |
+|----------|---------|-----------|
+| Valeur vide en tableau | `'-'` ou `-` | `'—'` |
+| Séparateur label | `code - libelle` | `code — libelle` |
+| Commentaire | `# Module - lecture seule` | `# Module — lecture seule` |
+| Routes URL | `/emploi-temps` (kebab-case) | `/emploi_temps` |
+
+Pour les cellules vides UI, préférer le littéral `'-'` (cohérent avec le reste du projet).

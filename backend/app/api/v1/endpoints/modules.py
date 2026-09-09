@@ -1,17 +1,22 @@
 """
 Endpoints API pour la gestion des modules.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import module_repository, matiere_repository
 from app.schemas.module import Module, ModuleCreate, ModuleUpdate
 from app.schemas.matiere import Matiere
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/modules", tags=["Modules"])
+
+_MODULE_FIELDS = ("code", "libelle", "sigle", "filiere_id", "semestre_id", "vol_horaire")
 
 
 @router.get(
@@ -90,8 +95,9 @@ def get_module(
 )
 def create_module(
     module_in: ModuleCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """Crée un nouveau module."""
     if module_repository.code_exists(db, module_in.code):
@@ -100,7 +106,17 @@ def create_module(
             detail=f"Le code '{module_in.code}' existe déjà",
         )
     try:
-        return module_repository.create(db, module_in)
+        module = module_repository.create(db, module_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="module",
+            entity_id=module.id,
+            new_values=fields_snapshot(module, *_MODULE_FIELDS),
+        )
+        return module
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -118,8 +134,9 @@ def create_module(
 def update_module(
     module_id: int,
     module_in: ModuleUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Met à jour un module."""
     module = module_repository.get_by_id(db, module_id)
@@ -136,8 +153,20 @@ def update_module(
                 detail=f"Le code '{module_in.code}' existe déjà",
             )
     
+    old_snapshot = fields_snapshot(module, *_MODULE_FIELDS)
     try:
-        return module_repository.update(db, module_id, module_in)
+        updated = module_repository.update(db, module_id, module_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="module",
+            entity_id=module_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_MODULE_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -154,15 +183,32 @@ def update_module(
 )
 def delete_module(
     module_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """Supprime un module (suppression logique)."""
+    module = module_repository.get_by_id(db, module_id)
+    if not module:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Module non trouvé",
+        )
+    old_snapshot = fields_snapshot(module, *_MODULE_FIELDS)
     if not module_repository.delete(db, module_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Module non trouvé",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="module",
+        entity_id=module_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Module supprimé avec succès"}
 
 

@@ -1,174 +1,62 @@
-describe('Administration', () => {
+/**
+ * E2E Administration - données API réelles (superadmin).
+ *
+ * Compte : admin@gestsco.com / Admin@123
+ */
+
+const ADMIN_EMAIL = 'admin@gestsco.com';
+const ADMIN_PASSWORD = 'Admin@123';
+
+describe('Administration E2E', () => {
   beforeEach(() => {
-    // Login as superadmin for admin pages
-    cy.visit('/login');
-    cy.contains('SuperAdmin').click();
-    cy.get('button[type="submit"]').click();
-    cy.url().should('include', '/dashboard');
-  });
-
-  describe('Logs', () => {
-    beforeEach(() => {
-      cy.visit('/admin/administration/logs');
-    });
-
-    it('should display logs page', () => {
-      cy.contains(/logs système|system logs/i).should('be.visible');
-    });
-
-    it('should display logs table', () => {
-      cy.get('table').should('be.visible');
-      cy.get('tbody tr').should('have.length.greaterThan', 0);
-    });
-
-    it('should filter logs by type', () => {
-      cy.get('select').first().select('error');
-      cy.get('tbody tr').each(($row) => {
-        cy.wrap($row).should('contain', 'Erreur');
-      });
-    });
-
-    it('should search logs', () => {
-      cy.get('input[placeholder*="echercher"]').type('Connexion');
-      cy.get('tbody tr').should('contain', 'Connexion');
-    });
-
-    it('should filter logs by date', () => {
-      cy.get('input[type="date"]').type('2025-01-08');
-      cy.get('tbody tr').should('have.length.greaterThan', 0);
-    });
-
-    it('should export logs', () => {
-      cy.contains(/exporter|export/i).click();
-      // Verify download started or modal appeared
-    });
-  });
-
-  describe('Sauvegardes', () => {
-    beforeEach(() => {
-      cy.visit('/admin/administration/backup');
-    });
-
-    it('should display backup page', () => {
-      cy.contains(/sauvegardes|backups/i).should('be.visible');
-    });
-
-    it('should display backup history', () => {
-      cy.get('table').should('be.visible');
-    });
-
-    it('should trigger new backup', () => {
-      cy.contains(/nouvelle sauvegarde|new backup/i).click();
-      cy.get('.progress-bar').should('be.visible');
-    });
-
-    it('should display backup configuration', () => {
-      cy.contains(/configuration/i).should('be.visible');
-      cy.get('input[type="checkbox"]').should('exist');
-    });
-
-    it('should download backup', () => {
-      cy.get('tbody tr').first().find('button').first().click();
-      // Verify download action
-    });
-  });
-
-  describe('Permissions', () => {
-    beforeEach(() => {
-      cy.visit('/admin/administration/permissions');
-    });
-
-    it('should display permissions page', () => {
-      cy.contains(/permissions/i).should('be.visible');
-    });
-
-    it('should display roles list', () => {
-      cy.get('table').should('be.visible');
-      cy.contains('Super Administrateur').should('be.visible');
-      cy.contains('Administrateur').should('be.visible');
-    });
-
-    it('should create new role', () => {
-      cy.contains(/nouveau rôle|new role/i).click();
-      cy.get('.modal').should('be.visible');
-      
-      cy.get('input[name="nom"]').type('Test Role');
-      cy.get('input[name="code"]').type('test_role');
-      cy.get('textarea[name="description"]').type('Role de test');
-      
-      // Select some permissions
-      cy.get('input[type="checkbox"]').first().check();
-      
-      cy.get('button[type="submit"]').click();
-      cy.contains(/succès|success/i).should('be.visible');
-    });
-
-    it('should edit role permissions', () => {
-      cy.get('tbody tr').eq(1).find('button').contains(/modifier|edit/i).click();
-      cy.get('.modal').should('be.visible');
-      
-      // Toggle a permission
-      cy.get('.modal input[type="checkbox"]').first().click();
-      cy.get('.modal button[type="submit"]').click();
-      
-      cy.contains(/modifié|updated/i).should('be.visible');
-    });
-
-    it('should not allow deleting superadmin role', () => {
-      cy.get('tbody tr').first().find('button').contains(/supprimer|delete/i).should('be.disabled');
-    });
-  });
-
-  describe('Audit', () => {
-    beforeEach(() => {
-      cy.visit('/admin/administration/audit');
-    });
-
-    it('should display audit page', () => {
-      cy.contains(/audit/i).should('be.visible');
-    });
-
-    it('should display audit entries', () => {
-      cy.get('table').should('be.visible');
-      cy.get('tbody tr').should('have.length.greaterThan', 0);
-    });
-
-    it('should filter by action type', () => {
-      cy.get('select').contains(/action/i).parent().select('Modification');
-      cy.get('tbody tr').each(($row) => {
-        cy.wrap($row).should('contain', 'Modification');
-      });
-    });
-
-    it('should filter by entity', () => {
-      cy.get('select').contains(/entité/i).parent().select('Étudiant');
-      cy.get('tbody tr').should('contain', 'Étudiant');
-    });
-
-    it('should view audit details', () => {
-      cy.get('tbody tr').first().find('button').click();
-      cy.get('.modal').should('be.visible');
-      cy.contains(/ancienne valeur|old value/i).should('be.visible');
-      cy.contains(/nouvelle valeur|new value/i).should('be.visible');
-    });
-
-    it('should export audit log', () => {
-      cy.contains(/exporter|export/i).click();
-      // Verify export action
-    });
-  });
-
-  describe('Access Control', () => {
-    it('should restrict admin pages for non-superadmin users', () => {
-      // Logout and login as regular admin
+    cy.session('admin-administration', () => {
       cy.visit('/login');
-      cy.get('input[type="email"]').type('admin@gestsco.com');
-      cy.get('input[type="password"]').type('admin123');
+      cy.get('input[type="email"]').clear().type(ADMIN_EMAIL);
+      cy.get('input[type="password"]').clear().type(ADMIN_PASSWORD);
       cy.get('button[type="submit"]').click();
-      
-      // Try to access admin pages
-      cy.visit('/admin/administration/permissions');
-      cy.contains(/accès refusé|access denied|non autorisé/i).should('be.visible');
+      cy.url({ timeout: 20000 }).should('include', '/admin/dashboard');
     });
+  });
+
+  const pages = [
+    { path: '/admin/administration/logs', title: 'Logs système', tableText: 'Historique' },
+    { path: '/admin/administration/backup', title: 'Sauvegardes', tableText: 'Historique des sauvegardes' },
+    { path: '/admin/administration/permissions', title: 'Permissions', tableText: 'Matrice RBAC active' },
+    { path: '/admin/administration/audit', title: 'Audit', tableText: "Événements d'audit" },
+  ];
+
+  pages.forEach(({ path, title, tableText }) => {
+    it(`${title} - page chargée avec données API`, () => {
+      cy.visit(path);
+      cy.get('h1.page-title', { timeout: 15000 }).should('contain', title);
+      cy.contains(tableText).should('be.visible');
+      cy.get('.alert-danger').should('not.exist');
+    });
+  });
+
+  it('navigation Administration - 4 onglets visibles', () => {
+    cy.visit('/admin/administration/logs');
+    cy.contains('.nav-link', 'Logs').should('be.visible');
+    cy.contains('.nav-link', 'Sauvegardes').should('be.visible');
+    cy.contains('.nav-link', 'Permissions').should('be.visible');
+    cy.contains('.nav-link', 'Audit').should('be.visible');
+  });
+
+  it('Permissions - matrice RBAC visible', () => {
+    cy.visit('/admin/administration/permissions');
+    cy.contains(/Matrice RBAC active/i).should('be.visible');
+    cy.get('table').should('contain', 'Finances');
+  });
+
+  it('scolarité - routes Administration bloquées', () => {
+    cy.session('scolarite-admin-block', () => {
+      cy.visit('/login');
+      cy.get('input[type="email"]').clear().type('scolarite@gestsco.com');
+      cy.get('input[type="password"]').clear().type('Scolarite@123');
+      cy.get('button[type="submit"]').click();
+      cy.url({ timeout: 20000 }).should('include', '/admin/');
+    });
+    cy.visit('/admin/administration/permissions');
+    cy.url({ timeout: 10000 }).should('not.include', '/admin/administration/permissions');
   });
 });

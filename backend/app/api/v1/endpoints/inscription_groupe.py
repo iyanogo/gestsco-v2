@@ -6,18 +6,19 @@ from typing import Optional
 from datetime import datetime, date
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 import pandas as pd
 
 from app.api.deps import get_db, get_current_active_user
-from app.core.permissions import get_current_scolarite_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.models.etudiant import Etudiant
 from app.models.inscription import Inscription
 from app.models.filiere import Filiere
 from app.models.niveau import Niveau
 from app.utils.matricule_generator import generate_matricule
+from app.utils.administration_events import audit_and_commit
 
 router = APIRouter(prefix="/inscription-groupe", tags=["Inscription Groupe"])
 
@@ -62,13 +63,14 @@ def parse_sexe(sexe_str: str) -> str:
 
 @router.post("/upload")
 async def upload_inscriptions_groupe(
+    http_request: Request,
     file: UploadFile = File(...),
     filiere_id: int = Form(...),
     niveau_id: int = Form(...),
     annee_academique: str = Form(...),
     type_inscription: str = Form(default="nouvelle"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("inscriptions", "create")),
 ):
     """
     Importe des inscriptions depuis un fichier Excel.
@@ -228,9 +230,23 @@ async def upload_inscriptions_groupe(
                     "error": str(e)
                 })
         
-        # Commit si au moins une inscription reussie
         if results["success"] > 0:
-            db.commit()
+            audit_and_commit(
+                db,
+                request=http_request,
+                user=current_user,
+                action="create",
+                entity_type="inscription_groupe",
+                entity_id=f"{filiere_id}-{niveau_id}",
+                new_values={
+                    "filiere_id": filiere_id,
+                    "niveau_id": niveau_id,
+                    "annee_academique": annee_academique,
+                    "success_count": results["success"],
+                    "error_count": len(results["errors"]),
+                },
+                details="import_excel",
+            )
         
         return results
         

@@ -152,6 +152,35 @@ alembic downgrade -1
 alembic revision --autogenerate -m "Description de la migration"
 ```
 
+### Post-migration : liaison User ↔ Etudiant (portail)
+
+La migration `002_etudiant_user_id` ajoute la colonne `etudiant.user_id` **sans** lier les comptes existants. Après chaque déploiement de cette migration (dev, staging, prod), exécuter le backfill :
+
+```bash
+# 1. Appliquer les migrations
+alembic upgrade head
+
+# 2. Dry-run (défaut) - lire le rapport sans modifier la base
+python scripts/backfill_etudiant_user_id.py
+
+# 3. Si le rapport est cohérent, appliquer les liens
+python scripts/backfill_etudiant_user_id.py --apply
+```
+
+**Comportement** : pour chaque étudiant sans `user_id`, recherche d'un `User` au même email (normalisation lowercase + trim). Les cas ambigus ou sans compte correspondant sont listés dans le rapport - résolution manuelle requise.
+
+**Limites** :
+- Ne crée pas de comptes User manquants (créer le compte étudiant puis relancer le script).
+- Ne remplace jamais un `user_id` déjà renseigné.
+- À réexécuter après import de nouveaux étudiants/comptes tant qu'aucun flux automatique de liaison n'existe à la création.
+
+**Cas non résolus automatiquement** :
+- Étudiant sans email → renseigner l'email ou lier manuellement : `UPDATE etudiant SET user_id = … WHERE id = …`
+- Étudiant sans compte User → créer un utilisateur (rôle `etudiant`) avec le même email, puis relancer le script
+- Email ambigu (plusieurs User) → corriger les doublons en base
+
+Voir aussi `docs/conception/CHECKLIST_BACKFILL_ETUDIANT_USER_ID.md`.
+
 ## Lancement
 
 ### Développement

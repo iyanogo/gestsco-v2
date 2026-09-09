@@ -10,6 +10,9 @@ from sqlalchemy import func
 from app.models.presence import Presence
 from app.models.seance import Seance
 from app.models.etudiant import Etudiant
+from app.models.inscription import Inscription
+from app.models.inscription_matiere import InscriptionMatiere
+from app.models.annee_academique import AnneeAcademique
 from app.repositories.base_repository import BaseRepository
 from app.schemas.presence import PresenceCreate, PresenceUpdate, PresenceBulkCreate
 
@@ -100,6 +103,67 @@ class PresenceRepository(BaseRepository[Presence, PresenceCreate, PresenceUpdate
         
         return presences_creees
 
+    def get_feuille_appel_seance(
+        self,
+        db: Session,
+        seance_id: int,
+    ) -> Optional[List[dict]]:
+        """
+        Retourne la feuille d'appel : étudiants inscrits à la matière de la séance,
+        fusionnés avec les présences déjà saisies.
+        """
+        seance = db.query(Seance).filter(Seance.id == seance_id).first()
+        if not seance:
+            return None
+
+        annee = db.query(AnneeAcademique).filter(
+            AnneeAcademique.id == seance.annee_academique_id
+        ).first()
+
+        query = (
+            db.query(Etudiant)
+            .join(Inscription, Etudiant.id == Inscription.etudiant_id)
+            .join(InscriptionMatiere, Inscription.id == InscriptionMatiere.inscription_id)
+            .filter(
+                InscriptionMatiere.matiere_id == seance.matiere_id,
+                InscriptionMatiere.semestre == seance.semestre,
+                Inscription.niveau_id == seance.niveau_id,
+                Inscription.is_active == True,
+            )
+        )
+        if seance.filiere_id:
+            query = query.filter(Inscription.filiere_id == seance.filiere_id)
+        if annee:
+            query = query.filter(Inscription.annee_academique == annee.code)
+        if hasattr(InscriptionMatiere, "is_active"):
+            query = query.filter(InscriptionMatiere.is_active == True)
+
+        etudiants = query.order_by(Etudiant.nom, Etudiant.prenom).distinct().all()
+        presences_map = {
+            p.etudiant_id: p for p in self.get_by_seance(db, seance_id)
+        }
+
+        rows = []
+        for etudiant in etudiants:
+            presence = presences_map.get(etudiant.id)
+            rows.append(
+                {
+                    "id": presence.id if presence else None,
+                    "seance_id": seance_id,
+                    "etudiant_id": etudiant.id,
+                    "statut": presence.statut if presence else "present",
+                    "heure_arrivee": presence.heure_arrivee if presence else None,
+                    "justificatif_url": presence.justificatif_url if presence else None,
+                    "observation": presence.observation if presence else None,
+                    "saisie_par": presence.saisie_par if presence else None,
+                    "date_saisie": presence.date_saisie if presence else None,
+                    "etudiant_nom": etudiant.nom,
+                    "etudiant_prenom": etudiant.prenom,
+                    "etudiant_matricule": etudiant.matricule,
+                }
+            )
+        return rows
+
     def calculer_taux_presence_etudiant(
         self,
         db: Session,
@@ -111,7 +175,7 @@ class PresenceRepository(BaseRepository[Presence, PresenceCreate, PresenceUpdate
         """Calcule le taux de présence d'un étudiant"""
         query = db.query(Presence).join(Seance).filter(
             Presence.etudiant_id == etudiant_id,
-            Seance.statut == "terminee"
+            Seance.statut.notin_(["annulee", "reportee", "planifiee"]),
         )
         
         if matiere_id:

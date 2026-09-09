@@ -2,11 +2,11 @@
 Endpoints API pour la gestion des types de frais
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_active_user
-from app.core.permissions import get_current_superuser
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories.type_frais_repository import type_frais_repository
 from app.schemas.type_frais import (
@@ -14,8 +14,12 @@ from app.schemas.type_frais import (
     TypeFraisCreate,
     TypeFraisUpdate,
 )
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter()
+
+_TYPE_FRAIS_FIELDS = ("code", "libelle", "categorie", "montant_defaut", "est_obligatoire", "is_active")
 
 
 @router.get("/", response_model=list[TypeFrais])
@@ -81,8 +85,9 @@ def get_type_frais(
 @router.post("/", response_model=TypeFrais, status_code=status.HTTP_201_CREATED)
 def create_type_frais(
     type_frais_in: TypeFraisCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("finances", "create")),
 ):
     """
     Crée un nouveau type de frais.
@@ -97,15 +102,26 @@ def create_type_frais(
             detail="Un type de frais avec ce code existe déjà"
         )
     
-    return type_frais_repository.create(db, type_frais_in)
+    type_frais = type_frais_repository.create(db, type_frais_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="type_frais",
+        entity_id=type_frais.id,
+        new_values=fields_snapshot(type_frais, *_TYPE_FRAIS_FIELDS),
+    )
+    return type_frais
 
 
 @router.put("/{type_frais_id}", response_model=TypeFrais)
 def update_type_frais(
     type_frais_id: int,
     type_frais_in: TypeFraisUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("finances", "update")),
 ):
     """
     Met à jour un type de frais.
@@ -128,14 +144,27 @@ def update_type_frais(
                 detail="Un type de frais avec ce code existe déjà"
             )
     
-    return type_frais_repository.update(db, type_frais_id, type_frais_in)
+    old_snapshot = fields_snapshot(type_frais, *_TYPE_FRAIS_FIELDS)
+    updated = type_frais_repository.update(db, type_frais_id, type_frais_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="type_frais",
+        entity_id=type_frais_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_TYPE_FRAIS_FIELDS),
+    )
+    return updated
 
 
 @router.delete("/{type_frais_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_type_frais(
     type_frais_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("finances", "delete")),
 ):
     """
     Supprime un type de frais (désactivation logique).
@@ -149,5 +178,15 @@ def delete_type_frais(
             detail="Type de frais non trouvé"
         )
     
+    old_snapshot = fields_snapshot(type_frais, *_TYPE_FRAIS_FIELDS)
     type_frais_repository.delete(db, type_frais_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="type_frais",
+        entity_id=type_frais_id,
+        old_values=old_snapshot,
+    )
     return None

@@ -1,97 +1,206 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Table, Button, Form, InputGroup, Badge, Modal, Nav, Tab } from 'react-bootstrap';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Table,
+  Button,
+  Form,
+  InputGroup,
+  Badge,
+  Modal,
+  Nav,
+  Tab,
+  Alert,
+  Spinner,
+} from 'react-bootstrap';
+import { Link } from 'react-router-dom';
+import { getEtudiants } from '../../../services/etudiantService';
+import {
+  getDocuments,
+  createDocument,
+  deleteDocument,
+} from '../../../services/documentEtudiantService';
+import { getFilieres } from '../../../services/filiereService';
+import { getNiveaux } from '../../../services/niveauService';
+import { getInscriptions } from '../../../services/inscriptionService';
+import { handleApiError } from '../../../utils/errorHandler';
+import type { DocumentEtudiant, Etudiant } from '../../../types/etudiant';
+import { TYPES_DOCUMENT } from '../../../types/etudiant';
 
-interface Document {
-  id: number;
-  nom: string;
-  type: string;
-  dateUpload: string;
-  statut: 'valide' | 'en_attente' | 'expire';
-}
+const REQUIRED_DOC_TYPES = ["Carte d'identité", "Photo d'identité", 'Baccalauréat', 'Certificat médical'];
+const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
-interface Dossier {
-  id: number;
-  matricule: string;
-  nom: string;
-  prenom: string;
-  filiere: string;
-  niveau: string;
+interface DossierRow {
+  etudiant: Etudiant;
+  documents: DocumentEtudiant[];
+  filiereLabel?: string;
+  niveauLabel?: string;
   completude: number;
-  documents: Document[];
-  statut: 'complet' | 'incomplet' | 'en_cours';
+  statut: 'complet' | 'incomplet';
 }
-
-const mockDossiers: Dossier[] = [
-  {
-    id: 1, matricule: '2024-0001', nom: 'Diallo', prenom: 'Amadou', filiere: 'Informatique', niveau: 'L2', completude: 100, statut: 'complet',
-    documents: [
-      { id: 1, nom: 'Carte d\'identité', type: 'CNI', dateUpload: '2024-09-15', statut: 'valide' },
-      { id: 2, nom: 'Photo d\'identité', type: 'Photo', dateUpload: '2024-09-15', statut: 'valide' },
-      { id: 3, nom: 'Baccalauréat', type: 'Diplôme', dateUpload: '2024-09-15', statut: 'valide' },
-      { id: 4, nom: 'Certificat de scolarité', type: 'Certificat', dateUpload: '2024-09-20', statut: 'valide' }
-    ]
-  },
-  {
-    id: 2, matricule: '2024-0002', nom: 'Sow', prenom: 'Fatou', filiere: 'Gestion', niveau: 'L1', completude: 75, statut: 'incomplet',
-    documents: [
-      { id: 1, nom: 'Carte d\'identité', type: 'CNI', dateUpload: '2024-09-10', statut: 'valide' },
-      { id: 2, nom: 'Photo d\'identité', type: 'Photo', dateUpload: '2024-09-10', statut: 'valide' },
-      { id: 3, nom: 'Baccalauréat', type: 'Diplôme', dateUpload: '2024-09-10', statut: 'valide' }
-    ]
-  },
-  {
-    id: 3, matricule: '2024-0003', nom: 'Ndiaye', prenom: 'Moussa', filiere: 'Économie', niveau: 'L3', completude: 50, statut: 'incomplet',
-    documents: [
-      { id: 1, nom: 'Carte d\'identité', type: 'CNI', dateUpload: '2024-09-05', statut: 'expire' },
-      { id: 2, nom: 'Photo d\'identité', type: 'Photo', dateUpload: '2024-09-05', statut: 'valide' }
-    ]
-  },
-  {
-    id: 4, matricule: '2024-0004', nom: 'Fall', prenom: 'Ibrahima', filiere: 'Informatique', niveau: 'M1', completude: 100, statut: 'complet',
-    documents: [
-      { id: 1, nom: 'Carte d\'identité', type: 'CNI', dateUpload: '2024-09-12', statut: 'valide' },
-      { id: 2, nom: 'Photo d\'identité', type: 'Photo', dateUpload: '2024-09-12', statut: 'valide' },
-      { id: 3, nom: 'Licence', type: 'Diplôme', dateUpload: '2024-09-12', statut: 'valide' },
-      { id: 4, nom: 'Relevé de notes L3', type: 'Relevé', dateUpload: '2024-09-12', statut: 'valide' }
-    ]
-  }
-];
 
 const DossiersPage: React.FC = () => {
-  const [dossiers] = useState<Dossier[]>(mockDossiers);
+  const [dossiers, setDossiers] = useState<DossierRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [selectedDossier, setSelectedDossier] = useState<Dossier | null>(null);
+  const [selectedDossier, setSelectedDossier] = useState<DossierRow | null>(null);
+  const [uploadType, setUploadType] = useState<string>(TYPES_DOCUMENT[0]);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const filteredDossiers = dossiers.filter(d => {
-    const matchSearch = `${d.nom} ${d.prenom} ${d.matricule}`.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatut = !filterStatut || d.statut === filterStatut;
-    return matchSearch && matchStatut;
-  });
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [etudiants, documents, inscriptions, filieres, niveaux] = await Promise.all([
+        getEtudiants({ limit: 500 }),
+        getDocuments({ limit: 500 }),
+        getInscriptions({ limit: 500 }),
+        getFilieres(),
+        getNiveaux(),
+      ]);
+
+      const filiereMap = new Map(filieres.map((f) => [f.id, f.libelle || f.code || '']));
+      const niveauMap = new Map(niveaux.map((n) => [n.id, n.libelle || n.code || '']));
+      const latestInscription = new Map<number, (typeof inscriptions)[0]>();
+
+      inscriptions.forEach((inscription) => {
+        const current = latestInscription.get(inscription.etudiant_id);
+        if (!current || (inscription.date_inscription ?? '') > (current.date_inscription ?? '')) {
+          latestInscription.set(inscription.etudiant_id, inscription);
+        }
+      });
+
+      const docsByEtudiant = documents.reduce<Record<number, DocumentEtudiant[]>>((acc, doc) => {
+        if (!acc[doc.etudiant_id]) acc[doc.etudiant_id] = [];
+        acc[doc.etudiant_id].push(doc);
+        return acc;
+      }, {});
+
+      const rows: DossierRow[] = etudiants.map((etudiant) => {
+        const studentDocs = docsByEtudiant[etudiant.id] || [];
+        const presentTypes = new Set(studentDocs.map((d) => d.type_document));
+        const requiredPresent = REQUIRED_DOC_TYPES.filter((type) => presentTypes.has(type)).length;
+        const completude = Math.round((requiredPresent / REQUIRED_DOC_TYPES.length) * 100);
+        const inscription = latestInscription.get(etudiant.id);
+
+        return {
+          etudiant,
+          documents: studentDocs,
+          filiereLabel: inscription?.filiere_id ? filiereMap.get(inscription.filiere_id) : undefined,
+          niveauLabel: inscription?.niveau_id ? niveauMap.get(inscription.niveau_id) : undefined,
+          completude,
+          statut: completude >= 100 ? 'complet' : 'incomplet',
+        };
+      });
+
+      setDossiers(rows);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const filteredDossiers = useMemo(() => {
+    return dossiers.filter((dossier) => {
+      const search = searchTerm.toLowerCase();
+      const matchSearch =
+        !search ||
+        `${dossier.etudiant.nom} ${dossier.etudiant.prenom} ${dossier.etudiant.matricule ?? ''}`
+          .toLowerCase()
+          .includes(search);
+      const matchStatut = !filterStatut || dossier.statut === filterStatut;
+      return matchSearch && matchStatut;
+    });
+  }, [dossiers, searchTerm, filterStatut]);
 
   const getStatutBadge = (statut: string) => {
+    if (statut === 'complet') return <Badge bg="success">Complet</Badge>;
+    return <Badge bg="warning" text="dark">Incomplet</Badge>;
+  };
+
+  const getDocStatutBadge = (statut?: string) => {
     switch (statut) {
-      case 'complet': return <Badge bg="success">Complet</Badge>;
-      case 'incomplet': return <Badge bg="warning" text="dark">Incomplet</Badge>;
-      case 'en_cours': return <Badge bg="info">En cours</Badge>;
-      default: return <Badge bg="secondary">{statut}</Badge>;
+      case 'valide':
+        return <Badge bg="success">Valide</Badge>;
+      case 'refuse':
+        return <Badge bg="danger">Refusé</Badge>;
+      default:
+        return <Badge bg="warning" text="dark">En attente</Badge>;
     }
   };
 
-  const getDocStatutBadge = (statut: string) => {
-    switch (statut) {
-      case 'valide': return <Badge bg="success">Valide</Badge>;
-      case 'en_attente': return <Badge bg="warning" text="dark">En attente</Badge>;
-      case 'expire': return <Badge bg="danger">Expiré</Badge>;
-      default: return <Badge bg="secondary">{statut}</Badge>;
+  const openDossier = (dossier: DossierRow) => {
+    setSelectedDossier(dossier);
+    setUploadFile(null);
+    setShowModal(true);
+  };
+
+  const handleAddDocument = async () => {
+    if (!selectedDossier || !uploadFile) {
+      setError('Sélectionnez un type et un fichier.');
+      return;
+    }
+    if (uploadFile.size > MAX_FILE_SIZE) {
+      setError('Le fichier dépasse la taille maximale de 2 Mo.');
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    try {
+      await createDocument({
+        etudiant_id: selectedDossier.etudiant.id,
+        type_document: uploadType,
+        libelle: uploadFile.name,
+        format_fichier: uploadFile.type,
+        taille_fichier: uploadFile.size,
+      });
+      const docs = await getDocuments({ etudiant_id: selectedDossier.etudiant.id });
+      setSelectedDossier((prev) => (prev ? { ...prev, documents: docs } : prev));
+      await loadData();
+      setUploadFile(null);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: number) => {
+    if (!window.confirm('Supprimer ce document ?')) return;
+    try {
+      await deleteDocument(documentId);
+      await loadData();
+      if (selectedDossier) {
+        setSelectedDossier((prev) =>
+          prev
+            ? {
+                ...prev,
+                documents: prev.documents.filter((doc) => doc.id !== documentId),
+              }
+            : prev
+        );
+      }
+    } catch (err) {
+      setError(handleApiError(err));
     }
   };
 
   const stats = {
     total: dossiers.length,
-    complets: dossiers.filter(d => d.statut === 'complet').length,
-    incomplets: dossiers.filter(d => d.statut === 'incomplet').length
+    complets: dossiers.filter((d) => d.statut === 'complet').length,
+    incomplets: dossiers.filter((d) => d.statut === 'incomplet').length,
   };
 
   return (
@@ -101,21 +210,26 @@ const DossiersPage: React.FC = () => {
           <div className="d-flex justify-content-between align-items-center">
             <div>
               <h2 className="mb-1 fw-bold">Dossiers administratifs</h2>
-              <p className="text-muted mb-0">Gestion des documents des étudiants</p>
+              <p className="text-muted mb-0">Documents des étudiants inscrits</p>
             </div>
             <div>
-              <Button variant="outline-warning" className="me-2">
-                <i className="bi bi-exclamation-triangle me-2"></i>Dossiers incomplets ({stats.incomplets})
+              <Button variant="outline-warning" className="me-2" disabled>
+                Dossiers incomplets ({stats.incomplets})
               </Button>
-              <Button variant="outline-success">
-                <i className="bi bi-download me-2"></i>Exporter
+              <Button variant="outline-secondary" size="sm" onClick={loadData} disabled={loading}>
+                <i className="bi bi-arrow-clockwise me-1"></i>Actualiser
               </Button>
             </div>
           </div>
         </Col>
       </Row>
 
-      {/* Stats */}
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
       <Row className="mb-4">
         <Col md={4}>
           <Card className="border-0 shadow-sm bg-primary text-white">
@@ -163,8 +277,16 @@ const DossiersPage: React.FC = () => {
           <Row className="align-items-center">
             <Col md={5}>
               <InputGroup>
-                <InputGroup.Text className="bg-light border-end-0"><i className="bi bi-search text-muted"></i></InputGroup.Text>
-                <Form.Control type="text" placeholder="Rechercher un étudiant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border-start-0" />
+                <InputGroup.Text className="bg-light border-end-0">
+                  <i className="bi bi-search text-muted"></i>
+                </InputGroup.Text>
+                <Form.Control
+                  type="text"
+                  placeholder="Rechercher un étudiant..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="border-start-0"
+                />
               </InputGroup>
             </Col>
             <Col md={3}>
@@ -180,70 +302,96 @@ const DossiersPage: React.FC = () => {
           </Row>
         </Card.Header>
         <Card.Body className="p-0">
-          <Table responsive hover className="mb-0">
-            <thead className="bg-light">
-              <tr>
-                <th className="border-0 px-4 py-3">Matricule</th>
-                <th className="border-0 py-3">Étudiant</th>
-                <th className="border-0 py-3">Filière / Niveau</th>
-                <th className="border-0 py-3 text-center">Documents</th>
-                <th className="border-0 py-3 text-center">Complétude</th>
-                <th className="border-0 py-3 text-center">Statut</th>
-                <th className="border-0 py-3 text-end px-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDossiers.map((dossier) => (
-                <tr key={dossier.id}>
-                  <td className="px-4 py-3"><span className="fw-semibold text-primary">{dossier.matricule}</span></td>
-                  <td className="py-3">
-                    <div className="fw-semibold">{dossier.nom} {dossier.prenom}</div>
-                  </td>
-                  <td className="py-3">
-                    <div>{dossier.filiere}</div>
-                    <Badge bg="secondary">{dossier.niveau}</Badge>
-                  </td>
-                  <td className="py-3 text-center">
-                    <Badge bg="info" className="px-3 py-2">{dossier.documents.length}</Badge>
-                  </td>
-                  <td className="py-3 text-center">
-                    <div className="d-flex align-items-center justify-content-center">
-                      <div className="progress" style={{ width: 80, height: 8 }}>
-                        <div className={`progress-bar bg-${dossier.completude === 100 ? 'success' : 'warning'}`} style={{ width: `${dossier.completude}%` }}></div>
-                      </div>
-                      <span className="ms-2 small">{dossier.completude}%</span>
-                    </div>
-                  </td>
-                  <td className="py-3 text-center">{getStatutBadge(dossier.statut)}</td>
-                  <td className="py-3 text-end px-4">
-                    <Button variant="outline-primary" size="sm" className="me-2" onClick={() => { setSelectedDossier(dossier); setShowModal(true); }}>
-                      <i className="bi bi-eye me-1"></i>Voir
-                    </Button>
-                    <Button variant="outline-secondary" size="sm">
-                      <i className="bi bi-upload"></i>
-                    </Button>
-                  </td>
+          {loading ? (
+            <div className="text-center py-5">
+              <Spinner animation="border" variant="primary" />
+            </div>
+          ) : (
+            <Table responsive hover className="mb-0">
+              <thead className="bg-light">
+                <tr>
+                  <th className="border-0 px-4 py-3">Matricule</th>
+                  <th className="border-0 py-3">Étudiant</th>
+                  <th className="border-0 py-3">Filière / Niveau</th>
+                  <th className="border-0 py-3 text-center">Documents</th>
+                  <th className="border-0 py-3 text-center">Complétude</th>
+                  <th className="border-0 py-3 text-center">Statut</th>
+                  <th className="border-0 py-3 text-end px-4">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody>
+                {filteredDossiers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center text-muted py-5">
+                      Aucun dossier trouvé.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDossiers.map((dossier) => (
+                    <tr key={dossier.etudiant.id}>
+                      <td className="px-4 py-3">
+                        <span className="fw-semibold text-primary">{dossier.etudiant.matricule || '-'}</span>
+                      </td>
+                      <td className="py-3">
+                        <div className="fw-semibold">
+                          {dossier.etudiant.nom} {dossier.etudiant.prenom}
+                        </div>
+                      </td>
+                      <td className="py-3">
+                        <div>{dossier.filiereLabel || '-'}</div>
+                        <Badge bg="secondary">{dossier.niveauLabel || '-'}</Badge>
+                      </td>
+                      <td className="py-3 text-center">
+                        <Badge bg="info" className="px-3 py-2">{dossier.documents.length}</Badge>
+                      </td>
+                      <td className="py-3 text-center">
+                        <div className="d-flex align-items-center justify-content-center">
+                          <div className="progress" style={{ width: 80, height: 8 }}>
+                            <div
+                              className={`progress-bar bg-${dossier.completude === 100 ? 'success' : 'warning'}`}
+                              style={{ width: `${dossier.completude}%` }}
+                            />
+                          </div>
+                          <span className="ms-2 small">{dossier.completude}%</span>
+                        </div>
+                      </td>
+                      <td className="py-3 text-center">{getStatutBadge(dossier.statut)}</td>
+                      <td className="py-3 text-end px-4">
+                        <Button variant="outline-primary" size="sm" className="me-2" onClick={() => openDossier(dossier)}>
+                          <i className="bi bi-eye me-1"></i>Voir
+                        </Button>
+                        <Link to={`/admin/etudiants/${dossier.etudiant.id}`} className="btn btn-sm btn-outline-secondary">
+                          <i className="bi bi-person"></i>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </Table>
+          )}
         </Card.Body>
       </Card>
 
-      {/* Modal Détails Dossier */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>Dossier de {selectedDossier?.prenom} {selectedDossier?.nom}</Modal.Title>
+          <Modal.Title>
+            Dossier de {selectedDossier?.etudiant.prenom} {selectedDossier?.etudiant.nom}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {selectedDossier && (
             <Tab.Container defaultActiveKey="documents">
               <Nav variant="tabs" className="mb-3">
                 <Nav.Item>
-                  <Nav.Link eventKey="documents"><i className="bi bi-file-earmark me-2"></i>Documents</Nav.Link>
+                  <Nav.Link eventKey="documents">
+                    <i className="bi bi-file-earmark me-2"></i>Documents
+                  </Nav.Link>
                 </Nav.Item>
                 <Nav.Item>
-                  <Nav.Link eventKey="infos"><i className="bi bi-person me-2"></i>Informations</Nav.Link>
+                  <Nav.Link eventKey="infos">
+                    <i className="bi bi-person me-2"></i>Informations
+                  </Nav.Link>
                 </Nav.Item>
               </Nav>
               <Tab.Content>
@@ -253,43 +401,79 @@ const DossiersPage: React.FC = () => {
                       <tr>
                         <th>Document</th>
                         <th>Type</th>
-                        <th>Date d'upload</th>
                         <th className="text-center">Statut</th>
                         <th className="text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedDossier.documents.map((doc) => (
-                        <tr key={doc.id}>
-                          <td>{doc.nom}</td>
-                          <td>{doc.type}</td>
-                          <td>{new Date(doc.dateUpload).toLocaleDateString('fr-FR')}</td>
-                          <td className="text-center">{getDocStatutBadge(doc.statut)}</td>
-                          <td className="text-center">
-                            <Button variant="link" size="sm" className="p-0 me-2"><i className="bi bi-eye"></i></Button>
-                            <Button variant="link" size="sm" className="p-0 text-danger"><i className="bi bi-trash"></i></Button>
+                      {selectedDossier.documents.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="text-center text-muted py-3">
+                            Aucun document enregistré.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        selectedDossier.documents.map((doc) => (
+                          <tr key={doc.id}>
+                            <td>{doc.libelle || doc.type_document}</td>
+                            <td>{doc.type_document}</td>
+                            <td className="text-center">{getDocStatutBadge(doc.statut)}</td>
+                            <td className="text-center">
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="p-0 text-danger"
+                                onClick={() => handleDeleteDocument(doc.id)}
+                              >
+                                <i className="bi bi-trash"></i>
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </Table>
-                  <div className="text-center mt-3">
-                    <Button variant="outline-primary">
-                      <i className="bi bi-plus-lg me-2"></i>Ajouter un document
-                    </Button>
-                  </div>
+                  <Card className="mt-3 border">
+                    <Card.Body>
+                      <h6 className="fw-bold mb-3">Ajouter un document</h6>
+                      <Row className="g-2 align-items-end">
+                        <Col md={4}>
+                          <Form.Select value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
+                            {TYPES_DOCUMENT.map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </Form.Select>
+                        </Col>
+                        <Col md={5}>
+                          <Form.Control
+                            type="file"
+                            accept=".pdf,image/*"
+                            onChange={(e) => {
+                              const input = e.target as HTMLInputElement;
+                              setUploadFile(input.files?.[0] ?? null);
+                            }}
+                          />
+                        </Col>
+                        <Col md={3}>
+                          <Button variant="primary" className="w-100" onClick={handleAddDocument} disabled={uploading}>
+                            {uploading ? 'Envoi...' : 'Enregistrer'}
+                          </Button>
+                        </Col>
+                      </Row>
+                    </Card.Body>
+                  </Card>
                 </Tab.Pane>
                 <Tab.Pane eventKey="infos">
                   <Row>
                     <Col md={6}>
-                      <p><strong>Matricule:</strong> {selectedDossier.matricule}</p>
-                      <p><strong>Nom:</strong> {selectedDossier.nom}</p>
-                      <p><strong>Prénom:</strong> {selectedDossier.prenom}</p>
+                      <p><strong>Matricule:</strong> {selectedDossier.etudiant.matricule || '-'}</p>
+                      <p><strong>Email:</strong> {selectedDossier.etudiant.email || '-'}</p>
+                      <p><strong>Téléphone:</strong> {selectedDossier.etudiant.telephone || '-'}</p>
                     </Col>
                     <Col md={6}>
-                      <p><strong>Filière:</strong> {selectedDossier.filiere}</p>
-                      <p><strong>Niveau:</strong> {selectedDossier.niveau}</p>
-                      <p><strong>Statut:</strong> {getStatutBadge(selectedDossier.statut)}</p>
+                      <p><strong>Filière:</strong> {selectedDossier.filiereLabel || '-'}</p>
+                      <p><strong>Niveau:</strong> {selectedDossier.niveauLabel || '-'}</p>
+                      <p><strong>Statut dossier:</strong> {getStatutBadge(selectedDossier.statut)}</p>
                     </Col>
                   </Row>
                 </Tab.Pane>
@@ -299,7 +483,6 @@ const DossiersPage: React.FC = () => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowModal(false)}>Fermer</Button>
-          <Button variant="primary"><i className="bi bi-printer me-2"></i>Imprimer le dossier</Button>
         </Modal.Footer>
       </Modal>
     </Container>

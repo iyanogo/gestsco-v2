@@ -75,12 +75,20 @@ async def get_current_scolarite_user(
     current_user: User = Depends(get_current_active_user),
 ) -> User:
     """
-    Vérifie que l'utilisateur a les droits de scolarité (superuser ou rôle scolarité).
+    Vérifie que l'utilisateur a les droits de scolarité ou admin.
     """
     if current_user.is_superuser:
         return current_user
-    # Vérifier si l'utilisateur a le rôle scolarité
-    if hasattr(current_user, 'role') and current_user.role in ['scolarite', 'admin']:
+
+    if hasattr(current_user, "role") and current_user.role in [
+        "admin",
+        "scolarite",
+        "administrateur",
+        "comptable",
+    ]:
         return current_user
-    # Par défaut, autoriser tous les utilisateurs actifs pour la scolarité
-    return current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Droits insuffisants. Accès réservé aux administrateurs et à la scolarité.",
+    )

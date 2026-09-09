@@ -7,7 +7,7 @@ import {
   MouvementCompte,
 } from '../types/finance';
 
-const BASE_URL = '/comptes-etudiants';
+const BASE_URL = '/api/v1/comptes-etudiants';
 
 export const compteEtudiantService = {
   getComptes: async (params?: {

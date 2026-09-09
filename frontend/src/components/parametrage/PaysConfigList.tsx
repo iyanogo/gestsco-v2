@@ -22,8 +22,8 @@ import { PaysConfiguration } from '../../types/parametrage';
 interface PaysConfigListProps {
   pays: PaysConfiguration[];
   loading: boolean;
-  onEdit: (pays: PaysConfiguration) => void;
-  onDelete: (id: number) => void;
+  onEdit?: (pays: PaysConfiguration) => void;
+  onDelete?: (id: number) => void;
 }
 
 const PaysConfigList: React.FC<PaysConfigListProps> = ({
@@ -70,18 +70,24 @@ const PaysConfigList: React.FC<PaysConfigListProps> = ({
                     </Typography>
                   </Box>
                 </Box>
-                <Box>
-                  <Tooltip title="Modifier">
-                    <IconButton size="small" onClick={() => onEdit(p)}>
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Supprimer">
-                    <IconButton size="small" color="error" onClick={() => onDelete(p.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
+                {(onEdit || onDelete) && (
+                  <Box>
+                    {onEdit && (
+                      <Tooltip title="Modifier">
+                        <IconButton size="small" onClick={() => onEdit(p)}>
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {onDelete && (
+                      <Tooltip title="Supprimer">
+                        <IconButton size="small" color="error" onClick={() => onDelete(p.id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                )}
               </Box>
 
               <Box mt={2} display="flex" flexWrap="wrap" gap={1}>

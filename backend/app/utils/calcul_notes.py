@@ -8,7 +8,10 @@ Ce module contient les fonctions de calcul pour :
 - Crédits ECTS
 """
 
-from typing import Optional, Tuple, List
+from typing import TYPE_CHECKING, Optional, Tuple, List
+
+if TYPE_CHECKING:
+    from app.utils.deliberation_rules import DeliberationConfigSnapshot
 
 
 def calculer_moyenne_ponderee(
@@ -79,12 +82,15 @@ def calculer_moyenne_matiere(
     return calculer_moyenne_ponderee(notes)
 
 
-def calculer_mention(moyenne: Optional[float]) -> Optional[str]:
+def calculer_mention(
+    moyenne: Optional[float],
+    seuil_validation: float = 10.0,
+) -> Optional[str]:
     """
     Détermine la mention selon la moyenne obtenue.
     
     Barème CAMES :
-    - < 10 : Pas de mention (échec)
+    - < seuil_validation : Pas de mention (échec)
     - 10-11.99 : Passable
     - 12-13.99 : Assez Bien
     - 14-15.99 : Bien
@@ -93,11 +99,12 @@ def calculer_mention(moyenne: Optional[float]) -> Optional[str]:
     
     Args:
         moyenne: La moyenne de l'étudiant
+        seuil_validation: Seuil minimal pour obtenir une mention (aligné config LMD)
         
     Returns:
-        La mention ou None si moyenne < 10
+        La mention ou None si moyenne < seuil_validation
     """
-    if moyenne is None or moyenne < 10:
+    if moyenne is None or moyenne < seuil_validation:
         return None
     
     if moyenne >= 18:
@@ -112,10 +119,32 @@ def calculer_mention(moyenne: Optional[float]) -> Optional[str]:
         return "passable"
 
 
+def _note_eliminatoire_appliquee(
+    config: Optional["DeliberationConfigSnapshot"],
+    notes_composantes: Optional[List[float]],
+) -> bool:
+    if config is None or config.note_eliminatoire is None or not notes_composantes:
+        return False
+    return any(n < config.note_eliminatoire for n in notes_composantes)
+
+
+def _taux_presence_insuffisant(
+    config: Optional["DeliberationConfigSnapshot"],
+    taux_presence: Optional[float],
+) -> bool:
+    """True si le seuil configuré n'est pas atteint (données de présence requises)."""
+    if config is None or config.taux_presence_min is None or taux_presence is None:
+        return False
+    return taux_presence < config.taux_presence_min
+
+
 def determiner_decision_matiere(
     moyenne: Optional[float],
     credit: float,
     seuil_validation: float = 10.0,
+    config: Optional["DeliberationConfigSnapshot"] = None,
+    notes_composantes: Optional[List[float]] = None,
+    taux_presence: Optional[float] = None,
 ) -> Tuple[str, float]:
     """
     Détermine la décision et les crédits obtenus pour une matière.
@@ -123,15 +152,27 @@ def determiner_decision_matiere(
     Args:
         moyenne: La moyenne de la matière
         credit: Le nombre de crédits de la matière
-        seuil_validation: Le seuil de validation (défaut 10/20)
+        seuil_validation: Le seuil de validation (défaut 10/20 si pas de config)
+        config: Snapshot ConfigurationDeliberation (prioritaire sur seuil_validation)
+        notes_composantes: Notes CC/TP/examen sur 20 (pour note_eliminatoire)
+        taux_presence: Taux de présence sur la matière (%) - si sous taux_presence_min → ajourné
         
     Returns:
         Tuple (décision, crédits_obtenus)
         - "admis" si moyenne >= seuil, crédits complets
-        - "ajourne" si moyenne < seuil, 0 crédit
+        - "ajourne" si moyenne < seuil ou note éliminatoire, 0 crédit
     """
+    if config is not None:
+        seuil_validation = config.moyenne_validation
+
     if moyenne is None:
         return ("en_cours", 0.0)
+
+    if _note_eliminatoire_appliquee(config, notes_composantes):
+        return ("ajourne", 0.0)
+
+    if _taux_presence_insuffisant(config, taux_presence):
+        return ("ajourne", 0.0)
     
     if moyenne >= seuil_validation:
         return ("admis", credit)

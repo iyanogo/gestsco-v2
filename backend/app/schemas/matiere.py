@@ -18,6 +18,11 @@ class MatiereBase(BaseModel):
     va: Optional[float] = Field(None, description="VA")
     vcvh: Optional[float] = Field(None, description="VCVH")
     vp: Optional[float] = Field(None, description="VP")
+    credit: Optional[int] = Field(
+        None, ge=0, le=30,
+        description="Crédits ECTS (défaut 3 si non renseigné à la création)",
+    )
+    obligatoire: bool = Field(True, description="Matière obligatoire")
     module_id: Optional[int] = Field(None, description="ID du module parent")
 
 
@@ -36,6 +41,8 @@ class MatiereUpdate(BaseModel):
     va: Optional[float] = None
     vcvh: Optional[float] = None
     vp: Optional[float] = None
+    credit: Optional[int] = Field(None, ge=0, le=30)
+    obligatoire: Optional[bool] = None
     module_id: Optional[int] = None
 
 

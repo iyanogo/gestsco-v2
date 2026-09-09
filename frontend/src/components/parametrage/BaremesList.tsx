@@ -38,10 +38,10 @@ import { BaremeNotation, MentionNotationCreate } from '../../types/parametrage';
 interface BaremesListProps {
   baremes: BaremeNotation[];
   loading: boolean;
-  onEdit: (bareme: BaremeNotation) => void;
-  onDelete: (id: number) => void;
-  onAddMention: (baremeId: number, data: MentionNotationCreate) => Promise<void>;
-  onDeleteMention: (mentionId: number) => void;
+  onEdit?: (bareme: BaremeNotation) => void;
+  onDelete?: (id: number) => void;
+  onAddMention?: (baremeId: number, data: MentionNotationCreate) => Promise<void>;
+  onDeleteMention?: (mentionId: number) => void;
 }
 
 const BaremesList: React.FC<BaremesListProps> = ({
@@ -87,6 +87,7 @@ const BaremesList: React.FC<BaremesListProps> = ({
   };
 
   const handleSaveMention = async () => {
+    if (!onAddMention) return;
     if (mentionDialog.baremeId && newMention.code && newMention.libelle) {
       await onAddMention(mentionDialog.baremeId, {
         bareme_id: mentionDialog.baremeId,
@@ -147,16 +148,20 @@ const BaremesList: React.FC<BaremesListProps> = ({
                   size="small"
                   sx={{ mr: 1 }}
                 />
-                <Tooltip title="Modifier">
-                  <IconButton size="small" onClick={() => onEdit(bareme)}>
-                    <EditIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Supprimer">
-                  <IconButton size="small" color="error" onClick={() => onDelete(bareme.id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                </Tooltip>
+                {onEdit && (
+                  <Tooltip title="Modifier">
+                    <IconButton size="small" onClick={() => onEdit(bareme)}>
+                      <EditIcon />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {onDelete && (
+                  <Tooltip title="Supprimer">
+                    <IconButton size="small" color="error" onClick={() => onDelete(bareme.id)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </Tooltip>
+                )}
               </Box>
             </Box>
 
@@ -164,13 +169,15 @@ const BaremesList: React.FC<BaremesListProps> = ({
               <Box mt={2}>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                   <Typography variant="subtitle2">Mentions</Typography>
-                  <Button
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={() => handleOpenMentionDialog(bareme.id)}
-                  >
-                    Ajouter une mention
-                  </Button>
+                  {onAddMention && (
+                    <Button
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={() => handleOpenMentionDialog(bareme.id)}
+                    >
+                      Ajouter une mention
+                    </Button>
+                  )}
                 </Box>
                 
                 {bareme.mentions && bareme.mentions.length > 0 ? (
@@ -207,15 +214,17 @@ const BaremesList: React.FC<BaremesListProps> = ({
                                 />
                               </TableCell>
                               <TableCell align="right">
-                                <Tooltip title="Supprimer">
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={() => onDeleteMention(mention.id)}
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                                {onDeleteMention && (
+                                  <Tooltip title="Supprimer">
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => onDeleteMention(mention.id)}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}

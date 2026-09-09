@@ -9,7 +9,7 @@ import {
   UpdateAnneeAcademique,
 } from '../types/inscription';
 
-const BASE_URL = '/annees-academiques';
+const BASE_URL = '/api/v1/annees-academiques';
 
 export interface AnneeAcademiqueParams {
   skip?: number;

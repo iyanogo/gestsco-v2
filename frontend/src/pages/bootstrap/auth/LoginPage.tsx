@@ -1,61 +1,44 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, InputGroup } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { getPostLoginPath } from '@/utils/authRedirect';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
+      navigate(from || getPostLoginPath(user), { replace: true });
+    }
+  }, [isAuthenticated, user, navigate, location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
-    // Simulation de connexion pour la démo
-    // En production, utiliser: await login(email, password);
-    setTimeout(() => {
-      setLoading(false);
-      
-      // Déterminer le rôle et les informations utilisateur
-      let role = 'student';
-      let nom = 'Utilisateur Demo';
-      let redirectPath = '/etudiant/dashboard';
-      
-      if (email.includes('superadmin')) {
-        role = 'superadmin';
-        nom = 'Super Administrateur';
-        redirectPath = '/admin/dashboard';
-      } else if (email.includes('admin')) {
-        role = 'admin';
-        nom = 'Administrateur';
-        redirectPath = '/admin/dashboard';
-      } else if (email.includes('enseignant')) {
-        role = 'teacher';
-        nom = 'Enseignant Demo';
-        redirectPath = '/enseignant/dashboard';
-      } else if (email.includes('etudiant')) {
-        role = 'student';
-        nom = 'Étudiant Demo';
-        redirectPath = '/etudiant/dashboard';
-      }
-      
-      // Stocker un token fictif pour la démo
-      localStorage.setItem('token', 'demo-token');
-      localStorage.setItem('user', JSON.stringify({ 
-        email, 
-        role,
-        nom,
-        permissions: role === 'superadmin' ? ['all'] : []
-      }));
-      
-      navigate(redirectPath);
-    }, 500);
+    try {
+      await login(email, password);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Identifiants invalides. Vérifiez votre email et mot de passe.';
+      setError(typeof message === 'string' ? message : 'Erreur de connexion');
+    }
+  };
+
+  const fillDemoCredentials = (demoEmail: string, demoPassword: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
   };
 
   return (
@@ -65,7 +48,6 @@ const LoginPage: React.FC = () => {
           <Col md={10} lg={8} xl={6}>
             <Card className="border-0 shadow-lg overflow-hidden">
               <Row className="g-0">
-                {/* Panneau gauche - Branding */}
                 <Col md={5} className="d-none d-md-flex bg-primary text-white p-4 flex-column justify-content-center">
                   <div className="text-center">
                     <div className="mb-4">
@@ -75,24 +57,9 @@ const LoginPage: React.FC = () => {
                     <p className="mb-4 opacity-75">
                       Système de Gestion Scolaire pour établissements d'enseignement supérieur
                     </p>
-                    <div className="d-flex justify-content-center gap-3">
-                      <div className="text-center">
-                        <div className="fs-4 fw-bold">1250+</div>
-                        <small className="opacity-75">Étudiants</small>
-                      </div>
-                      <div className="text-center">
-                        <div className="fs-4 fw-bold">85</div>
-                        <small className="opacity-75">Enseignants</small>
-                      </div>
-                      <div className="text-center">
-                        <div className="fs-4 fw-bold">42</div>
-                        <small className="opacity-75">Classes</small>
-                      </div>
-                    </div>
                   </div>
                 </Col>
 
-                {/* Panneau droit - Formulaire */}
                 <Col md={7}>
                   <Card.Body className="p-4 p-lg-5">
                     <div className="text-center mb-4 d-md-none">
@@ -147,7 +114,7 @@ const LoginPage: React.FC = () => {
                             required
                             className="border-start-0 border-end-0"
                           />
-                          <InputGroup.Text 
+                          <InputGroup.Text
                             className="bg-light border-start-0 cursor-pointer"
                             onClick={() => setShowPassword(!showPassword)}
                             style={{ cursor: 'pointer' }}
@@ -166,13 +133,13 @@ const LoginPage: React.FC = () => {
                         />
                       </Form.Group>
 
-                      <Button 
-                        variant="primary" 
-                        type="submit" 
+                      <Button
+                        variant="primary"
+                        type="submit"
                         className="w-100 py-2"
-                        disabled={loading}
+                        disabled={isLoading}
                       >
-                        {loading ? (
+                        {isLoading ? (
                           <>
                             <span className="spinner-border spinner-border-sm me-2" />
                             Connexion en cours...
@@ -189,39 +156,31 @@ const LoginPage: React.FC = () => {
                     <hr className="my-4" />
 
                     <div className="text-center">
-                      <p className="text-muted mb-3">Accès rapide pour la démo</p>
+                      <p className="text-muted mb-3">Comptes de démonstration</p>
                       <div className="d-flex flex-wrap justify-content-center gap-2">
-                        <Button 
-                          variant="danger" 
+                        <Button
+                          variant="outline-primary"
                           size="sm"
-                          onClick={() => { setEmail('superadmin@gestsco.com'); setPassword('superadmin123'); }}
-                        >
-                          <i className="bi bi-shield-fill-check me-1"></i>
-                          SuperAdmin
-                        </Button>
-                        <Button 
-                          variant="outline-primary" 
-                          size="sm"
-                          onClick={() => { setEmail('admin@gestsco.com'); setPassword('admin123'); }}
+                          onClick={() => fillDemoCredentials('admin@gestsco.com', 'Admin@123')}
                         >
                           <i className="bi bi-shield-check me-1"></i>
                           Admin
                         </Button>
-                        <Button 
-                          variant="outline-success" 
+                        <Button
+                          variant="outline-secondary"
                           size="sm"
-                          onClick={() => { setEmail('enseignant@gestsco.com'); setPassword('enseignant123'); }}
-                        >
-                          <i className="bi bi-person-workspace me-1"></i>
-                          Enseignant
-                        </Button>
-                        <Button 
-                          variant="outline-info" 
-                          size="sm"
-                          onClick={() => { setEmail('etudiant@gestsco.com'); setPassword('etudiant123'); }}
+                          onClick={() => fillDemoCredentials('scolarite@gestsco.com', 'Scolarite@123')}
                         >
                           <i className="bi bi-mortarboard me-1"></i>
-                          Étudiant
+                          Scolarité
+                        </Button>
+                        <Button
+                          variant="outline-success"
+                          size="sm"
+                          onClick={() => fillDemoCredentials('comptable@gestsco.com', 'Comptable@123')}
+                        >
+                          <i className="bi bi-cash-stack me-1"></i>
+                          Comptable
                         </Button>
                       </div>
                     </div>

@@ -1,16 +1,21 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.schemas.validators import EmailEtablissement, OptionalEmailEtablissement
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: EmailEtablissement
     full_name: Optional[str] = None
 
 
 class UserCreate(UserBase):
     password: str
+    role: str = "enseignant"
+    is_active: bool = True
+    is_superuser: bool = False
 
     @field_validator("password")
     @classmethod
@@ -21,11 +26,12 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
+    email: OptionalEmailEtablissement = None
     full_name: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role: Optional[str] = None
+    is_superuser: Optional[bool] = None
 
     @field_validator("password")
     @classmethod
@@ -48,6 +54,17 @@ class UserInDB(UserBase):
 
 class User(UserInDB):
     pass
+
+
+class UserSummary(BaseModel):
+    """Projection minimale pour listes déroulantes (stages, examens, jury)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailEtablissement
+    full_name: Optional[str] = None
+    role: str
 
 
 class Token(BaseModel):

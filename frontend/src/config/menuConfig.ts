@@ -1,4 +1,6 @@
 import { MenuItem } from '../components/layouts';
+import { AppRole, filterMenuForRole, resolveAppRole } from '../utils/rbac';
+import { User } from '../types/auth';
 
 // Menu Administration - tous les chemins commencent par /admin
 export const adminMenuItems: MenuItem[] = [
@@ -12,6 +14,7 @@ export const adminMenuItems: MenuItem[] = [
     id: 'referentiel',
     label: 'Référentiel',
     icon: 'database',
+    roles: ['superadmin', 'admin'],
     children: [
       { id: 'universites', label: 'Universités', icon: 'building', path: '/admin/referentiel/universites' },
       { id: 'etablissements', label: 'Établissements', icon: 'buildings', path: '/admin/referentiel/etablissements' },
@@ -21,7 +24,7 @@ export const adminMenuItems: MenuItem[] = [
       { id: 'niveaux', label: 'Niveaux', icon: 'layers', path: '/admin/referentiel/niveaux' },
       { id: 'modules', label: 'Modules', icon: 'grid-3x3', path: '/admin/referentiel/modules' },
       { id: 'matieres', label: 'Matières', icon: 'book', path: '/admin/referentiel/matieres' },
-      { id: 'salles', label: 'Salles', icon: 'door-open', path: '/admin/referentiel/salles' }
+      { id: 'salles', label: 'Salles', icon: 'door-open', path: '/admin/emploi-temps/salles' }
     ]
   },
   {
@@ -33,8 +36,18 @@ export const adminMenuItems: MenuItem[] = [
       { id: 'nouveau-etudiant', label: 'Nouvel étudiant', icon: 'person-plus-fill', path: '/admin/etudiants/nouveau' },
       { id: 'inscriptions', label: 'Inscriptions', icon: 'person-plus', path: '/admin/etudiants/inscriptions' },
       { id: 'inscription-groupe', label: 'Inscription groupe', icon: 'people-fill', path: '/admin/etudiants/inscription-groupe' },
+      { id: 'inscriptions-matieres', label: 'Inscriptions matières', icon: 'journal-check', path: '/admin/etudiants/inscriptions-matieres' },
       { id: 'reinscriptions', label: 'Réinscriptions', icon: 'arrow-repeat', path: '/admin/etudiants/reinscriptions' },
       { id: 'dossiers', label: 'Dossiers administratifs', icon: 'folder2-open', path: '/admin/etudiants/dossiers' }
+    ]
+  },
+  {
+    id: 'stages',
+    label: 'Stages',
+    icon: 'briefcase',
+    children: [
+      { id: 'liste-stages', label: 'Stages', icon: 'briefcase', path: '/admin/stages' },
+      { id: 'soutenances', label: 'Soutenances', icon: 'easel', path: '/admin/soutenances' },
     ]
   },
   {
@@ -61,7 +74,9 @@ export const adminMenuItems: MenuItem[] = [
     icon: 'calendar3',
     children: [
       { id: 'planning', label: 'Planning', icon: 'calendar-week', path: '/admin/emploi-temps/planning' },
-      { id: 'salles', label: 'Salles', icon: 'door-open', path: '/admin/emploi-temps/salles' },
+      { id: 'batiments', label: 'Bâtiments', icon: 'building', path: '/admin/emploi-temps/batiments' },
+      { id: 'salles-edt', label: 'Salles', icon: 'door-open', path: '/admin/emploi-temps/salles' },
+      { id: 'creneaux', label: 'Créneaux horaires', icon: 'clock', path: '/admin/emploi-temps/creneaux' },
       { id: 'reservations', label: 'Réservations', icon: 'calendar-check', path: '/admin/emploi-temps/reservations' }
     ]
   },
@@ -81,7 +96,9 @@ export const adminMenuItems: MenuItem[] = [
     children: [
       { id: 'factures', label: 'Factures', icon: 'receipt', path: '/admin/finances/factures' },
       { id: 'paiements', label: 'Paiements', icon: 'credit-card', path: '/admin/finances/paiements' },
-      { id: 'types-frais', label: 'Types de frais', icon: 'tags', path: '/admin/finances/types-frais' }
+      { id: 'types-frais', label: 'Types de frais', icon: 'tags', path: '/admin/finances/types-frais' },
+      { id: 'remises', label: 'Remises', icon: 'percent', path: '/admin/finances/remises' },
+      { id: 'echeanciers', label: 'Échéanciers', icon: 'calendar-event', path: '/admin/finances/echeanciers' },
     ]
   },
   {
@@ -89,7 +106,7 @@ export const adminMenuItems: MenuItem[] = [
     label: 'Documents',
     icon: 'file-earmark-text',
     children: [
-      { id: 'documents-liste', label: 'Documents générés', icon: 'files', path: '/admin/documents/liste' },
+      { id: 'documents-liste', label: 'Dossiers administratifs', icon: 'files', path: '/admin/documents/liste' },
       { id: 'templates', label: 'Templates', icon: 'file-earmark-code', path: '/admin/documents/templates' }
     ]
   },
@@ -97,21 +114,30 @@ export const adminMenuItems: MenuItem[] = [
     id: 'parametrage',
     label: 'Paramétrage',
     icon: 'gear',
+    roles: ['superadmin', 'admin'],
     children: [
       { id: 'parametres-systeme', label: 'Paramètres généraux', icon: 'sliders', path: '/admin/parametrage/parametres' },
-      { id: 'annees-scolaires', label: 'Années scolaires', icon: 'calendar-range', path: '/admin/parametrage/annees-scolaires' }
+      { id: 'annees-scolaires', label: 'Années scolaires', icon: 'calendar-range', path: '/admin/parametrage/annees-scolaires' },
+      { id: 'baremes', label: 'Barèmes', icon: 'award', path: '/admin/parametrage/baremes' },
+      { id: 'pays', label: 'Pays', icon: 'globe2', path: '/admin/parametrage/pays' },
+      { id: 'regles-calcul', label: 'Règles de calcul', icon: 'calculator', path: '/admin/parametrage/regles-calcul' },
+      { id: 'modeles-communication', label: 'Modèles email/SMS', icon: 'envelope', path: '/admin/parametrage/modeles-communication' },
+      { id: 'annees-lmd', label: 'Années académiques LMD', icon: 'calendar3', path: '/admin/gestion-annees' },
+      { id: 'modules-systeme', label: 'Modules système', icon: 'puzzle', path: '/admin/gestion-modules' }
     ]
   },
   {
     id: 'utilisateurs',
     label: 'Utilisateurs',
     icon: 'people-fill',
-    path: '/admin/utilisateurs'
+    path: '/admin/utilisateurs',
+    superuserOnly: true,
   },
   {
     id: 'administration',
     label: 'Administration',
     icon: 'shield-lock',
+    superuserOnly: true,
     children: [
       { id: 'logs', label: 'Logs système', icon: 'journal-text', path: '/admin/administration/logs' },
       { id: 'backup', label: 'Sauvegardes', icon: 'cloud-download', path: '/admin/administration/backup' },
@@ -142,6 +168,12 @@ export const teacherMenuItems: MenuItem[] = [
     path: '/enseignant/emploi-temps'
   },
   {
+    id: 'stages',
+    label: 'Mes stages encadrés',
+    icon: 'briefcase',
+    path: '/enseignant/stages'
+  },
+  {
     id: 'notes',
     label: 'Saisie des notes',
     icon: 'pencil-square',
@@ -149,6 +181,12 @@ export const teacherMenuItems: MenuItem[] = [
       { id: 'saisie-notes', label: 'Saisir les notes', icon: 'pencil', path: '/enseignant/notes/saisie' },
       { id: 'historique-notes', label: 'Historique', icon: 'clock-history', path: '/enseignant/notes/historique' }
     ]
+  },
+  {
+    id: 'resultats-matieres',
+    label: 'Résultats de mes matières',
+    icon: 'graph-up',
+    path: '/enseignant/resultats',
   },
   {
     id: 'presences',
@@ -210,6 +248,12 @@ export const studentMenuItems: MenuItem[] = [
     path: '/etudiant/presences'
   },
   {
+    id: 'mon-stage',
+    label: 'Mon stage',
+    icon: 'briefcase',
+    path: '/etudiant/stages'
+  },
+  {
     id: 'finances',
     label: 'Mes finances',
     icon: 'wallet2',
@@ -232,9 +276,6 @@ export const studentMenuItems: MenuItem[] = [
 
 export const getMenuByRole = (role: string): MenuItem[] => {
   switch (role) {
-    case 'admin':
-    case 'superuser':
-      return adminMenuItems;
     case 'teacher':
     case 'enseignant':
       return teacherMenuItems;
@@ -242,6 +283,15 @@ export const getMenuByRole = (role: string): MenuItem[] => {
     case 'etudiant':
       return studentMenuItems;
     default:
-      return adminMenuItems;
+      return filterMenuForRole(adminMenuItems, role as AppRole);
   }
+};
+
+export const getMenuForUser = (user: User | null | undefined): MenuItem[] => {
+  const appRole = resolveAppRole(user);
+
+  if (appRole === 'enseignant') return teacherMenuItems;
+  if (appRole === 'etudiant') return studentMenuItems;
+
+  return filterMenuForRole(adminMenuItems, appRole);
 };

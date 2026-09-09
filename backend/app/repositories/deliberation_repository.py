@@ -11,9 +11,11 @@ from app.models.deliberation import Deliberation
 from app.models.resultat_semestre import ResultatSemestre
 from app.models.resultat_annuel import ResultatAnnuel
 from app.models.inscription import Inscription
+from app.models.session_examen import SessionExamen
 from app.schemas.deliberation import DeliberationCreate, DeliberationUpdate
 from app.repositories.base_repository import BaseRepository
 from app.utils.calcul_notes import calculer_taux_reussite
+from app.services.deliberation_service import DeliberationService
 
 
 class DeliberationRepository(BaseRepository[Deliberation, DeliberationCreate, DeliberationUpdate]):
@@ -123,8 +125,22 @@ class DeliberationRepository(BaseRepository[Deliberation, DeliberationCreate, De
             La délibération créée
         """
         now = datetime.utcnow()
-        
-        # Calculer les statistiques
+
+        session = db.query(SessionExamen).filter(SessionExamen.id == session_id).first()
+        if not session:
+            raise ValueError(f"Session {session_id} introuvable")
+
+        service = DeliberationService(db)
+        if type_deliberation == "semestrielle" and semestre:
+            service.executer_deliberation_semestrielle(
+                session_id, niveau_id, filiere_id, semestre
+            )
+        else:
+            service.executer_deliberation_annuelle(
+                niveau_id, filiere_id, session.annee_academique_id
+            )
+
+        # Calculer les statistiques après application des règles de délibération
         stats = self._calculer_statistiques(
             db, session_id, niveau_id, filiere_id, type_deliberation, semestre
         )
@@ -176,7 +192,8 @@ class DeliberationRepository(BaseRepository[Deliberation, DeliberationCreate, De
             
             nombre_etudiants = len(resultats)
             nombre_admis = len([r for r in resultats if r.decision in ("admis", "admis_avec_dette")])
-            nombre_ajournes = len([r for r in resultats if r.decision == "ajourne"])
+            nombre_ajournes = len([r for r in resultats if r.decision in ("ajourne", "rattrapage")])
+            nombre_exclus = len([r for r in resultats if r.decision == "exclus"])
             
         else:
             # Statistiques annuelles
@@ -186,8 +203,9 @@ class DeliberationRepository(BaseRepository[Deliberation, DeliberationCreate, De
             ).all()
             
             nombre_etudiants = len(resultats)
-            nombre_admis = len([r for r in resultats if r.decision == "admis"])
-            nombre_ajournes = len([r for r in resultats if r.decision in ("ajourne", "rattrapage")])
+            nombre_admis = len([r for r in resultats if r.decision in ("admis", "admis_avec_dette")])
+            nombre_ajournes = len([r for r in resultats if r.decision in ("ajourne", "rattrapage", "redouble")])
+            nombre_exclus = len([r for r in resultats if r.decision == "exclus"])
         
         taux_reussite = calculer_taux_reussite(nombre_admis, nombre_etudiants)
         
@@ -195,6 +213,7 @@ class DeliberationRepository(BaseRepository[Deliberation, DeliberationCreate, De
             "nombre_etudiants": nombre_etudiants,
             "nombre_admis": nombre_admis,
             "nombre_ajournes": nombre_ajournes,
+            "nombre_exclus": nombre_exclus,
             "nombre_redoublants": len([r for r in resultats if hasattr(r, 'decision') and r.decision == "redouble"]),
             "taux_reussite": taux_reussite
         }
@@ -247,6 +266,8 @@ class DeliberationRepository(BaseRepository[Deliberation, DeliberationCreate, De
         db_obj.validee_par = user_id
         db_obj.date_validation = now
         db_obj.updated_at = now
+
+        DeliberationService(db).marquer_resultats_valides(db_obj)
         
         db.commit()
         db.refresh(db_obj)

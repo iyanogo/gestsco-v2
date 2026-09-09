@@ -4,6 +4,8 @@
 
 import api from './api';
 
+const BASE_URL = '/api/v1/inscription-groupe';
+
 export interface InscriptionGroupeResult {
   total: number;
   success: number;
@@ -43,7 +45,7 @@ export const inscriptionGroupeService = {
     formData.append('type_inscription', typeInscription);
 
     const response = await api.post<InscriptionGroupeResult>(
-      '/inscription-groupe/upload',
+      `${BASE_URL}/upload`,
       formData,
       {
         headers: {
@@ -58,7 +60,7 @@ export const inscriptionGroupeService = {
    * Récupère les informations sur le format du fichier Excel
    */
   async getTemplate(): Promise<TemplateInfo> {
-    const response = await api.get<TemplateInfo>('/inscription-groupe/template');
+    const response = await api.get<TemplateInfo>(`${BASE_URL}/template`);
     return response.data;
   },
 };

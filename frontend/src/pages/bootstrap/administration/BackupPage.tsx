@@ -1,212 +1,242 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, ProgressBar, Alert } from 'react-bootstrap';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Badge, Button, Form, Modal } from 'react-bootstrap';
+import { PageHeader } from '../../../components/layouts';
+import { AdminSectionNav } from '../../../components/administration';
+import { DataCard, DataTable, Column } from '../../../components/ui';
+import administrationService, { BackupRun } from '../../../services/administrationService';
 
-interface Backup {
-  id: number;
-  nom: string;
-  date: string;
-  taille: string;
-  type: 'automatique' | 'manuel';
-  statut: 'complet' | 'en_cours' | 'echec';
+const STATUS_BADGE: Record<string, string> = {
+  success: 'success',
+  running: 'primary',
+  pending: 'secondary',
+  failed: 'danger',
+};
+
+function formatSize(bytes?: number | null): string {
+  if (bytes == null) return '-';
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-const mockBackups: Backup[] = [
-  { id: 1, nom: 'backup_2025-01-08_08-30.sql', date: '2025-01-08 08:30:00', taille: '125 MB', type: 'automatique', statut: 'complet' },
-  { id: 2, nom: 'backup_2025-01-07_08-30.sql', date: '2025-01-07 08:30:00', taille: '124 MB', type: 'automatique', statut: 'complet' },
-  { id: 3, nom: 'backup_2025-01-06_08-30.sql', date: '2025-01-06 08:30:00', taille: '123 MB', type: 'automatique', statut: 'complet' },
-  { id: 4, nom: 'backup_manuel_2025-01-05.sql', date: '2025-01-05 15:45:00', taille: '122 MB', type: 'manuel', statut: 'complet' },
-  { id: 5, nom: 'backup_2025-01-05_08-30.sql', date: '2025-01-05 08:30:00', taille: '122 MB', type: 'automatique', statut: 'complet' },
-];
-
 const BackupPage: React.FC = () => {
-  const [backups] = useState<Backup[]>(mockBackups);
-  const [isBackingUp, setIsBackingUp] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [backups, setBackups] = useState<BackupRun[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<BackupRun | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const handleBackup = () => {
-    setIsBackingUp(true);
-    setProgress(0);
-    setShowSuccess(false);
-    
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsBackingUp(false);
-          setShowSuccess(true);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 500);
-  };
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setBackups(await administrationService.getBackups());
+    } catch {
+      setError('Impossible de charger l\'historique des sauvegardes.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const getStatutBadge = (statut: string) => {
-    switch (statut) {
-      case 'complet': return <Badge bg="success">Complet</Badge>;
-      case 'en_cours': return <Badge bg="warning" text="dark">En cours</Badge>;
-      case 'echec': return <Badge bg="danger">Échec</Badge>;
-      default: return <Badge bg="secondary">{statut}</Badge>;
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleRestore = async () => {
+    if (!restoreTarget) return;
+    setRestoringId(restoreTarget.id);
+    setError(null);
+    setSuccess(null);
+    try {
+      await administrationService.restoreBackup(restoreTarget.id, restoreConfirm);
+      setSuccess(`Restauration lancée depuis ${restoreTarget.filename}.`);
+      setRestoreTarget(null);
+      setRestoreConfirm('');
+      await loadData();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : null;
+      setError(typeof msg === 'string' ? msg : 'Échec de la restauration.');
+    } finally {
+      setRestoringId(null);
     }
   };
 
-  return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1 fw-bold">Sauvegardes</h2>
-              <p className="text-muted mb-0">Gestion des sauvegardes de la base de données</p>
-            </div>
-            <Button variant="primary" onClick={handleBackup} disabled={isBackingUp}>
-              {isBackingUp ? (
-                <><span className="spinner-border spinner-border-sm me-2"></span>Sauvegarde en cours...</>
-              ) : (
-                <><i className="bi bi-cloud-upload me-2"></i>Nouvelle sauvegarde</>
-              )}
+  const handleCreate = async () => {
+    setCreating(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const run = await administrationService.createBackup();
+      if (run.status === 'success') {
+        setSuccess(`Sauvegarde créée : ${run.filename}`);
+      } else {
+        setError(run.error_message ?? 'La sauvegarde a échoué.');
+      }
+      await loadData();
+    } catch {
+      setError('Impossible de lancer la sauvegarde.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDownload = async (id: number) => {
+    try {
+      await administrationService.downloadBackup(id);
+    } catch {
+      setError('Téléchargement impossible.');
+    }
+  };
+
+  const columns: Column<BackupRun>[] = [
+    { key: 'filename', header: 'Fichier', render: (item) => <code>{item.filename}</code> },
+    {
+      key: 'date',
+      header: 'Date',
+      render: (item) => new Date(item.started_at).toLocaleString('fr-FR'),
+    },
+    {
+      key: 'size',
+      header: 'Taille',
+      render: (item) => formatSize(item.file_size_bytes),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      render: (item) => <Badge bg="secondary">{item.backup_type}</Badge>,
+    },
+    {
+      key: 'status',
+      header: 'Statut',
+      render: (item) => (
+        <Badge bg={STATUS_BADGE[item.status] ?? 'secondary'}>{item.status}</Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (item) =>
+        item.status === 'success' ? (
+          <div className="d-flex gap-2 justify-content-end">
+            <Button size="sm" variant="outline-primary" onClick={() => handleDownload(item.id)}>
+              <i className="bi bi-download me-1" />
+              Télécharger
+            </Button>
+            <Button
+              size="sm"
+              variant="outline-danger"
+              disabled={restoringId !== null}
+              onClick={() => {
+                setRestoreTarget(item);
+                setRestoreConfirm('');
+              }}
+            >
+              Restaurer
             </Button>
           </div>
-        </Col>
-      </Row>
+        ) : item.error_message ? (
+          <span className="small text-danger">{item.error_message}</span>
+        ) : (
+          '-'
+        ),
+    },
+  ];
 
-      {showSuccess && (
-        <Alert variant="success" dismissible onClose={() => setShowSuccess(false)}>
-          <i className="bi bi-check-circle me-2"></i>
-          Sauvegarde effectuée avec succès !
-        </Alert>
-      )}
+  return (
+    <div className="fade-in">
+      <PageHeader
+        title="Sauvegardes"
+        subtitle="Sauvegardes PostgreSQL via pg_dump"
+        breadcrumbs={[
+          { label: 'Administration', path: '/admin/administration/backup' },
+          { label: 'Sauvegardes' },
+        ]}
+        actions={
+          <Button variant="primary" onClick={handleCreate} disabled={creating}>
+            {creating ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" />
+                Sauvegarde…
+              </>
+            ) : (
+              <>
+                <i className="bi bi-cloud-download me-2" />
+                Créer une sauvegarde
+              </>
+            )}
+          </Button>
+        }
+      />
 
-      {isBackingUp && (
-        <Card className="border-0 shadow-sm mb-4">
-          <Card.Body>
-            <div className="d-flex justify-content-between mb-2">
-              <span>Sauvegarde en cours...</span>
-              <span>{progress}%</span>
-            </div>
-            <ProgressBar now={progress} animated striped />
-          </Card.Body>
-        </Card>
-      )}
+      <AdminSectionNav />
 
-      <Row className="mb-4">
-        <Col md={4}>
-          <Card className="border-0 shadow-sm bg-primary text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-cloud-download fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{backups.length}</h3><small>Sauvegardes</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="border-0 shadow-sm bg-success text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-check-circle fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{backups.filter(b => b.statut === 'complet').length}</h3><small>Réussies</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="border-0 shadow-sm bg-info text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-hdd fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">~620 MB</h3><small>Espace utilisé</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      {error && <Alert variant="danger">{error}</Alert>}
+      {success && <Alert variant="success">{success}</Alert>}
 
-      <Row className="mb-4">
-        <Col md={6}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white"><h6 className="mb-0 fw-bold">Configuration</h6></Card.Header>
-            <Card.Body>
-              <div className="mb-3">
-                <label className="form-label small text-muted">Sauvegarde automatique</label>
-                <div className="form-check form-switch">
-                  <input className="form-check-input" type="checkbox" defaultChecked />
-                  <label className="form-check-label">Activée</label>
-                </div>
-              </div>
-              <div className="mb-3">
-                <label className="form-label small text-muted">Fréquence</label>
-                <select className="form-select" defaultValue="daily">
-                  <option value="hourly">Toutes les heures</option>
-                  <option value="daily">Quotidienne</option>
-                  <option value="weekly">Hebdomadaire</option>
-                </select>
-              </div>
-              <div className="mb-3">
-                <label className="form-label small text-muted">Heure de sauvegarde</label>
-                <input type="time" className="form-control" defaultValue="08:30" />
-              </div>
-              <div>
-                <label className="form-label small text-muted">Rétention (jours)</label>
-                <input type="number" className="form-control" defaultValue={30} min={7} max={365} />
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={6}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white"><h6 className="mb-0 fw-bold">Dernière sauvegarde</h6></Card.Header>
-            <Card.Body>
-              <div className="text-center py-3">
-                <i className="bi bi-cloud-check text-success display-4 mb-3"></i>
-                <h5 className="fw-bold">Sauvegarde réussie</h5>
-                <p className="text-muted mb-2">{backups[0]?.date}</p>
-                <p className="mb-3"><Badge bg="info">{backups[0]?.taille}</Badge></p>
-                <Button variant="outline-primary" size="sm" className="me-2">
-                  <i className="bi bi-download me-1"></i>Télécharger
-                </Button>
-                <Button variant="outline-success" size="sm">
-                  <i className="bi bi-arrow-counterclockwise me-1"></i>Restaurer
-                </Button>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      <Alert variant="warning" className="mb-4">
+        <i className="bi bi-exclamation-triangle me-2" />
+        Nécessite <code>pg_dump</code> et <code>psql</code> sur le serveur backend.
+        La restauration remplace toutes les données - confirmation <code>RESTAURER</code> requise.
+      </Alert>
 
-      <Card className="border-0 shadow-sm">
-        <Card.Header className="bg-white py-3">
-          <h6 className="mb-0 fw-bold">Historique des sauvegardes</h6>
-        </Card.Header>
-        <Card.Body className="p-0">
-          <Table responsive hover className="mb-0">
-            <thead className="bg-light">
-              <tr>
-                <th className="border-0 px-4 py-3">Nom</th>
-                <th className="border-0 py-3">Date</th>
-                <th className="border-0 py-3">Taille</th>
-                <th className="border-0 py-3">Type</th>
-                <th className="border-0 py-3 text-center">Statut</th>
-                <th className="border-0 py-3 text-end px-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {backups.map((backup) => (
-                <tr key={backup.id}>
-                  <td className="px-4 py-3"><code className="small">{backup.nom}</code></td>
-                  <td className="py-3"><small>{backup.date}</small></td>
-                  <td className="py-3"><Badge bg="light" text="dark">{backup.taille}</Badge></td>
-                  <td className="py-3">
-                    {backup.type === 'automatique' ? <Badge bg="info">Auto</Badge> : <Badge bg="secondary">Manuel</Badge>}
-                  </td>
-                  <td className="py-3 text-center">{getStatutBadge(backup.statut)}</td>
-                  <td className="py-3 text-end px-4">
-                    <Button variant="outline-primary" size="sm" className="me-2"><i className="bi bi-download"></i></Button>
-                    <Button variant="outline-success" size="sm" className="me-2"><i className="bi bi-arrow-counterclockwise"></i></Button>
-                    <Button variant="outline-danger" size="sm"><i className="bi bi-trash"></i></Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </Card.Body>
-      </Card>
-    </Container>
+      <DataCard title="Historique des sauvegardes">
+        <DataTable
+          columns={columns}
+          data={backups}
+          loading={loading}
+          emptyMessage="Aucune sauvegarde enregistrée."
+        />
+      </DataCard>
+
+      <Modal show={restoreTarget !== null} onHide={() => setRestoreTarget(null)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirmer la restauration</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Vous allez restaurer la base depuis{' '}
+            <strong>{restoreTarget?.filename}</strong>. Cette action est destructive et
+            irréversible.
+          </p>
+          <Form.Group>
+            <Form.Label>
+              Saisissez <code>RESTAURER</code> pour confirmer
+            </Form.Label>
+            <Form.Control
+              value={restoreConfirm}
+              onChange={(e) => setRestoreConfirm(e.target.value)}
+              placeholder="RESTAURER"
+              autoComplete="off"
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setRestoreTarget(null)}>
+            Annuler
+          </Button>
+          <Button
+            variant="danger"
+            disabled={restoreConfirm !== 'RESTAURER' || restoringId !== null}
+            onClick={handleRestore}
+          >
+            {restoringId !== null ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" />
+                Restauration…
+              </>
+            ) : (
+              'Restaurer la base'
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </div>
   );
 };
 

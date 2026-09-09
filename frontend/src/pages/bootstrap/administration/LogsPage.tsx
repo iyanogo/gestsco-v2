@@ -1,163 +1,254 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Table, Button, Form, InputGroup, Badge } from 'react-bootstrap';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Badge, Button, Col, Form, Modal, Row } from 'react-bootstrap';
+import { PageHeader } from '../../../components/layouts';
+import { AdminSectionNav } from '../../../components/administration';
+import { DataCard, DataTable, SearchFilter, StatCard, Column } from '../../../components/ui';
+import administrationService, {
+  SystemLog,
+  SystemLogSummary,
+} from '../../../services/administrationService';
 
-interface Log {
-  id: number;
-  timestamp: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  action: string;
-  utilisateur: string;
-  ip: string;
-  details: string;
-}
-
-const mockLogs: Log[] = [
-  { id: 1, timestamp: '2025-01-08 09:15:32', type: 'success', action: 'Connexion', utilisateur: 'admin@gestsco.com', ip: '192.168.1.100', details: 'Connexion réussie' },
-  { id: 2, timestamp: '2025-01-08 09:10:45', type: 'info', action: 'Création étudiant', utilisateur: 'admin@gestsco.com', ip: '192.168.1.100', details: 'Nouvel étudiant: Amadou Diallo' },
-  { id: 3, timestamp: '2025-01-08 09:05:12', type: 'warning', action: 'Tentative connexion', utilisateur: 'inconnu', ip: '192.168.1.50', details: 'Mot de passe incorrect (3 tentatives)' },
-  { id: 4, timestamp: '2025-01-08 08:55:00', type: 'info', action: 'Modification note', utilisateur: 'enseignant@gestsco.com', ip: '192.168.1.75', details: 'Note modifiée: INF101 - Diallo Amadou' },
-  { id: 5, timestamp: '2025-01-08 08:45:30', type: 'error', action: 'Erreur système', utilisateur: 'système', ip: '-', details: 'Échec envoi email: serveur SMTP indisponible' },
-  { id: 6, timestamp: '2025-01-08 08:30:00', type: 'success', action: 'Sauvegarde', utilisateur: 'système', ip: '-', details: 'Sauvegarde automatique effectuée' },
-  { id: 7, timestamp: '2025-01-07 18:00:00', type: 'info', action: 'Déconnexion', utilisateur: 'admin@gestsco.com', ip: '192.168.1.100', details: 'Déconnexion manuelle' },
-  { id: 8, timestamp: '2025-01-07 17:45:22', type: 'success', action: 'Paiement', utilisateur: 'comptable@gestsco.com', ip: '192.168.1.80', details: 'Paiement enregistré: 150000 FCFA - Sow Fatou' },
-];
+const LEVEL_BADGE: Record<string, string> = {
+  INFO: 'info',
+  SUCCESS: 'success',
+  WARNING: 'warning',
+  ERROR: 'danger',
+};
 
 const LogsPage: React.FC = () => {
-  const [logs] = useState<Log[]>(mockLogs);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterDate, setFilterDate] = useState('');
+  const [logs, setLogs] = useState<SystemLog[]>([]);
+  const [summary, setSummary] = useState<SystemLogSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchValue, setSearchValue] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
+  const [purgeDays, setPurgeDays] = useState(90);
+  const [purgeConfirm, setPurgeConfirm] = useState('');
+  const [purging, setPurging] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const filteredLogs = logs.filter(l => {
-    const matchSearch = l.action.toLowerCase().includes(searchTerm.toLowerCase()) || l.utilisateur.toLowerCase().includes(searchTerm.toLowerCase()) || l.details.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchType = !filterType || l.type === filterType;
-    const matchDate = !filterDate || l.timestamp.startsWith(filterDate);
-    return matchSearch && matchType && matchDate;
-  });
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [logsData, summaryData] = await Promise.all([
+        administrationService.getLogs({
+          search: searchValue || undefined,
+          level: filterValues.level || undefined,
+          source: filterValues.source || undefined,
+          limit: 200,
+        }),
+        administrationService.getLogsSummary(),
+      ]);
+      setLogs(logsData);
+      setSummary(summaryData);
+    } catch {
+      setError('Impossible de charger les logs système.');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchValue, filterValues]);
 
-  const getTypeBadge = (type: string) => {
-    switch (type) {
-      case 'success': return <Badge bg="success"><i className="bi bi-check-circle me-1"></i>Succès</Badge>;
-      case 'info': return <Badge bg="info"><i className="bi bi-info-circle me-1"></i>Info</Badge>;
-      case 'warning': return <Badge bg="warning" text="dark"><i className="bi bi-exclamation-triangle me-1"></i>Attention</Badge>;
-      case 'error': return <Badge bg="danger"><i className="bi bi-x-circle me-1"></i>Erreur</Badge>;
-      default: return <Badge bg="secondary">{type}</Badge>;
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handlePurge = async () => {
+    setPurging(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await administrationService.purgeLogs(purgeDays, purgeConfirm);
+      setSuccess(result.message);
+      setShowPurgeModal(false);
+      setPurgeConfirm('');
+      await loadData();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : null;
+      setError(typeof msg === 'string' ? msg : 'Échec de la purge des logs.');
+    } finally {
+      setPurging(false);
     }
   };
 
-  const stats = {
-    total: logs.length,
-    success: logs.filter(l => l.type === 'success').length,
-    warnings: logs.filter(l => l.type === 'warning').length,
-    errors: logs.filter(l => l.type === 'error').length
-  };
+  const columns: Column<SystemLog>[] = [
+    {
+      key: 'created_at',
+      header: 'Date',
+      render: (item) => (
+        <small>{new Date(item.created_at).toLocaleString('fr-FR')}</small>
+      ),
+    },
+    {
+      key: 'level',
+      header: 'Niveau',
+      render: (item) => (
+        <Badge bg={LEVEL_BADGE[item.level] ?? 'secondary'}>{item.level}</Badge>
+      ),
+    },
+    { key: 'source', header: 'Source' },
+    {
+      key: 'action',
+      header: 'Action',
+      render: (item) => item.action ?? '-',
+    },
+    {
+      key: 'message',
+      header: 'Message',
+      render: (item) => <span className="small">{item.message}</span>,
+    },
+    {
+      key: 'user',
+      header: 'Utilisateur',
+      render: (item) => item.user_email ?? '-',
+    },
+    {
+      key: 'ip',
+      header: 'IP',
+      render: (item) => item.ip_address ?? '-',
+    },
+  ];
 
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1 fw-bold">Logs système</h2>
-              <p className="text-muted mb-0">Historique des événements et actions système</p>
-            </div>
-            <div>
-              <Button variant="outline-danger" className="me-2"><i className="bi bi-trash me-2"></i>Purger les logs</Button>
-              <Button variant="outline-success"><i className="bi bi-download me-2"></i>Exporter</Button>
-            </div>
-          </div>
-        </Col>
-      </Row>
+    <div className="fade-in">
+      <PageHeader
+        title="Logs système"
+        subtitle="Journal applicatif persisté (connexions, requêtes API, événements)"
+        breadcrumbs={[
+          { label: 'Administration', path: '/admin/administration/logs' },
+          { label: 'Logs système' },
+        ]}
+        actions={
+          <Button variant="outline-danger" onClick={() => setShowPurgeModal(true)}>
+            <i className="bi bi-trash me-2" />
+            Purger l&apos;historique
+          </Button>
+        }
+      />
 
-      <Row className="mb-4">
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-primary text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-journal-text fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.total}</h3><small>Total logs</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-success text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-check-circle fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.success}</h3><small>Succès</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-warning text-dark">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-exclamation-triangle fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.warnings}</h3><small>Avertissements</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-danger text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-x-circle fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.errors}</h3><small>Erreurs</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      <AdminSectionNav />
 
-      <Card className="border-0 shadow-sm">
-        <Card.Header className="bg-white py-3">
-          <Row className="align-items-center">
-            <Col md={4}>
-              <InputGroup>
-                <InputGroup.Text className="bg-light border-end-0"><i className="bi bi-search text-muted"></i></InputGroup.Text>
-                <Form.Control type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border-start-0" />
-              </InputGroup>
-            </Col>
-            <Col md={3}>
-              <Form.Select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                <option value="">Tous les types</option>
-                <option value="success">Succès</option>
-                <option value="info">Info</option>
-                <option value="warning">Avertissement</option>
-                <option value="error">Erreur</option>
-              </Form.Select>
-            </Col>
-            <Col md={3}>
-              <Form.Control type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-            </Col>
-            <Col md={2} className="text-end">
-              <span className="text-muted">{filteredLogs.length} entrée(s)</span>
-            </Col>
-          </Row>
-        </Card.Header>
-        <Card.Body className="p-0">
-          <Table responsive hover className="mb-0">
-            <thead className="bg-light">
-              <tr>
-                <th className="border-0 px-4 py-3">Horodatage</th>
-                <th className="border-0 py-3">Type</th>
-                <th className="border-0 py-3">Action</th>
-                <th className="border-0 py-3">Utilisateur</th>
-                <th className="border-0 py-3">IP</th>
-                <th className="border-0 py-3">Détails</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.map((log) => (
-                <tr key={log.id}>
-                  <td className="px-4 py-3"><small className="text-muted">{log.timestamp}</small></td>
-                  <td className="py-3">{getTypeBadge(log.type)}</td>
-                  <td className="py-3 fw-semibold">{log.action}</td>
-                  <td className="py-3"><small>{log.utilisateur}</small></td>
-                  <td className="py-3"><code className="small">{log.ip}</code></td>
-                  <td className="py-3"><small className="text-muted">{log.details}</small></td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </Card.Body>
-      </Card>
-    </Container>
+      {error && <Alert variant="danger">{error}</Alert>}
+      {success && <Alert variant="success">{success}</Alert>}
+
+      {summary && (
+        <Row className="g-3 mb-4">
+          <Col sm={6} xl={3}>
+            <StatCard title="Total" value={summary.total} icon="journal-text" variant="primary" />
+          </Col>
+          <Col sm={6} xl={3}>
+            <StatCard title="Succès" value={summary.success} icon="check-circle" variant="success" />
+          </Col>
+          <Col sm={6} xl={3}>
+            <StatCard title="Avertissements" value={summary.warning} icon="exclamation-triangle" variant="warning" />
+          </Col>
+          <Col sm={6} xl={3}>
+            <StatCard title="Erreurs" value={summary.error} icon="x-circle" variant="danger" />
+          </Col>
+        </Row>
+      )}
+
+      <SearchFilter
+        searchValue={searchValue}
+        onSearchChange={setSearchValue}
+        searchPlaceholder="Rechercher dans les messages, actions, chemins…"
+        filters={[
+          {
+            key: 'level',
+            label: 'Niveau',
+            type: 'select',
+            options: [
+              { value: '', label: 'Tous' },
+              { value: 'INFO', label: 'INFO' },
+              { value: 'SUCCESS', label: 'SUCCESS' },
+              { value: 'WARNING', label: 'WARNING' },
+              { value: 'ERROR', label: 'ERROR' },
+            ],
+          },
+          {
+            key: 'source',
+            label: 'Source',
+            type: 'select',
+            options: [
+              { value: '', label: 'Toutes' },
+              { value: 'auth', label: 'Auth' },
+              { value: 'api', label: 'API' },
+            ],
+          },
+        ]}
+        filterValues={filterValues}
+        onFilterChange={(key, value) =>
+          setFilterValues((prev) => ({ ...prev, [key]: value }))
+        }
+        onReset={() => {
+          setSearchValue('');
+          setFilterValues({});
+        }}
+      />
+
+      <DataCard title="Historique">
+        <DataTable
+          columns={columns}
+          data={logs}
+          loading={loading}
+          emptyMessage="Aucun log enregistré pour le moment."
+        />
+      </DataCard>
+
+      <Form.Text className="text-muted d-block mt-2">
+        Les requêtes API sont journalisées automatiquement. Les connexions et actions
+        utilisateurs alimentent aussi ce journal.
+      </Form.Text>
+
+      <Modal show={showPurgeModal} onHide={() => setShowPurgeModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Purger les logs anciens</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Supprime définitivement les entrées de log plus anciennes que la rétention choisie.
+          </p>
+          <Form.Group className="mb-3">
+            <Form.Label>Rétention (jours minimum à conserver)</Form.Label>
+            <Form.Control
+              type="number"
+              min={1}
+              max={3650}
+              value={purgeDays}
+              onChange={(e) => setPurgeDays(Number(e.target.value))}
+            />
+            <Form.Text>Les logs antérieurs à {purgeDays} jours seront supprimés.</Form.Text>
+          </Form.Group>
+          <Form.Group>
+            <Form.Label>
+              Saisissez <code>PURGER</code> pour confirmer
+            </Form.Label>
+            <Form.Control
+              value={purgeConfirm}
+              onChange={(e) => setPurgeConfirm(e.target.value)}
+              placeholder="PURGER"
+              autoComplete="off"
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowPurgeModal(false)}>
+            Annuler
+          </Button>
+          <Button
+            variant="danger"
+            disabled={purgeConfirm !== 'PURGER' || purging || purgeDays < 1}
+            onClick={handlePurge}
+          >
+            {purging ? 'Purge…' : 'Purger'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </div>
   );
 };
 

@@ -35,4 +35,35 @@ describe('AdminDashboard', () => {
       expect(screen.getByText('Exporter le rapport')).toBeInTheDocument();
     });
   });
+
+  describe('quick actions', () => {
+    it('should link quick actions to admin routes', () => {
+      renderDashboard();
+
+      expect(screen.getByRole('link', { name: /Nouvelle inscription/i })).toHaveAttribute(
+        'href',
+        '/admin/etudiants/nouveau'
+      );
+      expect(screen.getByRole('link', { name: /Saisir des notes/i })).toHaveAttribute(
+        'href',
+        '/admin/evaluations/notes'
+      );
+      expect(screen.getByRole('link', { name: /Créer une facture/i })).toHaveAttribute(
+        'href',
+        '/admin/finances/factures/nouveau'
+      );
+      expect(screen.getByRole('link', { name: /Emploi du temps/i })).toHaveAttribute(
+        'href',
+        '/admin/emploi-temps/planning'
+      );
+    });
+
+    it('should link voir tout actions to admin routes', () => {
+      renderDashboard();
+
+      const voirToutLinks = screen.getAllByRole('link', { name: /Voir tout/i });
+      expect(voirToutLinks[0]).toHaveAttribute('href', '/admin/etudiants/inscriptions');
+      expect(voirToutLinks[1]).toHaveAttribute('href', '/admin/finances/paiements');
+    });
+  });
 });

@@ -207,6 +207,9 @@ export interface PaiementWithDetails extends Paiement {
   etudiant_matricule?: string;
 }
 
+/** Alias portail - même schéma que Paiement (route `/paiements-factures`). */
+export type PaiementFacture = Paiement;
+
 export interface CreatePaiement {
   facture_id: number;
   etudiant_id: number;

@@ -4,11 +4,11 @@ Endpoints API pour la gestion des sessions d'examen
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_active_user
-from app.core.permissions import get_current_scolarite_user, get_current_superuser
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import session_examen_repository
 from app.schemas.session_examen import (
@@ -16,8 +16,20 @@ from app.schemas.session_examen import (
     SessionExamenCreate,
     SessionExamenUpdate,
 )
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/sessions-examen", tags=["Sessions d'Examen"])
+
+_SESSION_EXAMEN_FIELDS = (
+    "code",
+    "libelle",
+    "annee_academique_id",
+    "type_session",
+    "semestre",
+    "statut",
+    "is_active",
+)
 
 
 @router.get("/", response_model=list[SessionExamen], summary="Liste des sessions d'examen")
@@ -98,8 +110,9 @@ async def get_session_examen(
 @router.post("/", response_model=SessionExamen, status_code=status.HTTP_201_CREATED, summary="Créer une session")
 async def create_session_examen(
     session_in: SessionExamenCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_notes", "create")),
 ):
     """
     Crée une nouvelle session d'examen.
@@ -113,15 +126,26 @@ async def create_session_examen(
             detail="Une session avec ce code existe déjà"
         )
     
-    return session_examen_repository.create(db, session_in)
+    session = session_examen_repository.create(db, session_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="session_examen",
+        entity_id=session.id,
+        new_values=fields_snapshot(session, *_SESSION_EXAMEN_FIELDS),
+    )
+    return session
 
 
 @router.put("/{session_id}", response_model=SessionExamen, summary="Modifier une session")
 async def update_session_examen(
     session_id: int,
     session_in: SessionExamenUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_notes", "update")),
 ):
     """
     Met à jour une session d'examen existante.
@@ -142,84 +166,154 @@ async def update_session_examen(
             detail="Une session avec ce code existe déjà"
         )
     
-    return session_examen_repository.update(db, session_id, session_in)
+    old_snapshot = fields_snapshot(session, *_SESSION_EXAMEN_FIELDS)
+    updated = session_examen_repository.update(db, session_id, session_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="session_examen",
+        entity_id=session_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_SESSION_EXAMEN_FIELDS),
+    )
+    return updated
 
 
 @router.patch("/{session_id}/ouvrir", response_model=SessionExamen, summary="Ouvrir une session")
 async def ouvrir_session_examen(
     session_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_notes", "update")),
 ):
     """
     Ouvre une session d'examen (statut = en_cours).
     
     Requiert les droits admin ou scolarité.
     """
-    session = session_examen_repository.ouvrir_session(db, session_id)
-    if not session:
+    existing = session_examen_repository.get_by_id(db, session_id)
+    if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session d'examen non trouvée"
         )
+    old_snapshot = fields_snapshot(existing, *_SESSION_EXAMEN_FIELDS)
+    session = session_examen_repository.ouvrir_session(db, session_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="session_examen",
+        entity_id=session_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(session, *_SESSION_EXAMEN_FIELDS),
+        details="ouvrir",
+    )
     return session
 
 
 @router.patch("/{session_id}/cloturer", response_model=SessionExamen, summary="Clôturer une session")
 async def cloturer_session_examen(
     session_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_notes", "update")),
 ):
     """
     Clôture une session d'examen (statut = cloturee).
     
     Requiert les droits admin ou scolarité.
     """
-    session = session_examen_repository.cloturer_session(db, session_id)
-    if not session:
+    existing = session_examen_repository.get_by_id(db, session_id)
+    if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session d'examen non trouvée"
         )
+    old_snapshot = fields_snapshot(existing, *_SESSION_EXAMEN_FIELDS)
+    session = session_examen_repository.cloturer_session(db, session_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="session_examen",
+        entity_id=session_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(session, *_SESSION_EXAMEN_FIELDS),
+        details="cloturer",
+    )
     return session
 
 
 @router.patch("/{session_id}/valider", response_model=SessionExamen, summary="Valider une session")
 async def valider_session_examen(
     session_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("evaluations_notes", "validate")),
 ):
     """
     Valide une session d'examen (statut = validee).
     
     Requiert les droits superuser.
     """
-    session = session_examen_repository.valider_session(db, session_id)
-    if not session:
+    existing = session_examen_repository.get_by_id(db, session_id)
+    if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session d'examen non trouvée"
         )
+    old_snapshot = fields_snapshot(existing, *_SESSION_EXAMEN_FIELDS)
+    session = session_examen_repository.valider_session(db, session_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="validate",
+        entity_type="session_examen",
+        entity_id=session_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(session, *_SESSION_EXAMEN_FIELDS),
+    )
     return session
 
 
 @router.delete("/{session_id}", summary="Supprimer une session")
 async def delete_session_examen(
     session_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("evaluations_notes", "delete")),
 ):
     """
     Supprime une session d'examen.
     
     Requiert les droits superuser.
     """
+    existing = session_examen_repository.get_by_id(db, session_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session d'examen non trouvée"
+        )
+    old_snapshot = fields_snapshot(existing, *_SESSION_EXAMEN_FIELDS)
     success = session_examen_repository.delete(db, session_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session d'examen non trouvée"
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="session_examen",
+        entity_id=session_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Session d'examen supprimée avec succès"}

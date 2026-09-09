@@ -1,16 +1,21 @@
 """
 Endpoints API pour la gestion des niveaux.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
 from app.models.user import User
-from app.repositories import niveau_repository, cycle_repository
+from app.repositories import niveau_repository
 from app.schemas.niveau import Niveau, NiveauCreate, NiveauUpdate
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
+from app.utils.rbac_resolver import require_permission
 
 router = APIRouter(prefix="/niveaux", tags=["Niveaux"])
+
+_NIVEAU_FIELDS = ("code", "libelle", "semestre_id")
 
 
 @router.get(
@@ -85,22 +90,28 @@ def get_niveau(
 )
 def create_niveau(
     niveau_in: NiveauCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """Crée un nouveau niveau."""
-    if not cycle_repository.exists(db, niveau_in.cycle_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cycle non trouvé",
-        )
-    if niveau_repository.code_exists(db, niveau_in.code):
+    if niveau_in.code and niveau_repository.code_exists(db, niveau_in.code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Le code '{niveau_in.code}' existe déjà",
         )
     try:
-        return niveau_repository.create(db, niveau_in)
+        niveau = niveau_repository.create(db, niveau_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="niveau",
+            entity_id=niveau.id,
+            new_values=fields_snapshot(niveau, *_NIVEAU_FIELDS),
+        )
+        return niveau
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -118,8 +129,9 @@ def create_niveau(
 def update_niveau(
     niveau_id: int,
     niveau_in: NiveauUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Met à jour un niveau."""
     niveau = niveau_repository.get_by_id(db, niveau_id)
@@ -129,12 +141,6 @@ def update_niveau(
             detail="Niveau non trouvé",
         )
     
-    if niveau_in.cycle_id and not cycle_repository.exists(db, niveau_in.cycle_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cycle non trouvé",
-        )
-    
     if niveau_in.code and niveau_in.code != niveau.code:
         if niveau_repository.code_exists(db, niveau_in.code, exclude_id=niveau_id):
             raise HTTPException(
@@ -142,8 +148,20 @@ def update_niveau(
                 detail=f"Le code '{niveau_in.code}' existe déjà",
             )
     
+    old_snapshot = fields_snapshot(niveau, *_NIVEAU_FIELDS)
     try:
-        return niveau_repository.update(db, niveau_id, niveau_in)
+        updated = niveau_repository.update(db, niveau_id, niveau_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="niveau",
+            entity_id=niveau_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_NIVEAU_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -160,13 +178,30 @@ def update_niveau(
 )
 def delete_niveau(
     niveau_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """Supprime un niveau (suppression logique)."""
+    niveau = niveau_repository.get_by_id(db, niveau_id)
+    if not niveau:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Niveau non trouvé",
+        )
+    old_snapshot = fields_snapshot(niveau, *_NIVEAU_FIELDS)
     if not niveau_repository.delete(db, niveau_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Niveau non trouvé",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="niveau",
+        entity_id=niveau_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Niveau supprimé avec succès"}

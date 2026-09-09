@@ -3,90 +3,93 @@ Repository pour la gestion des configurations de délibération.
 """
 
 from typing import List, Optional
+
 from sqlalchemy.orm import Session
 
 from app.models.configuration_deliberation import ConfigurationDeliberation
 from app.repositories.base_repository import BaseRepository
+from app.schemas.configuration_deliberation import (
+    ConfigurationDeliberationCreate,
+    ConfigurationDeliberationUpdate,
+)
 
 
-class ConfigurationDeliberationRepository(BaseRepository[ConfigurationDeliberation]):
+class ConfigurationDeliberationRepository(
+    BaseRepository[
+        ConfigurationDeliberation,
+        ConfigurationDeliberationCreate,
+        ConfigurationDeliberationUpdate,
+    ]
+):
     """Repository pour les opérations CRUD sur les configurations de délibération."""
-    
-    def __init__(self, db: Session):
-        super().__init__(ConfigurationDeliberation, db)
-    
-    def get_by_annee(self, annee_id: int) -> List[ConfigurationDeliberation]:
-        """Récupère toutes les configurations d'une année."""
-        return self.db.query(ConfigurationDeliberation).filter(
-            ConfigurationDeliberation.annee_academique_id == annee_id
-        ).all()
-    
-    def get_globale(self, annee_id: int) -> Optional[ConfigurationDeliberation]:
-        """Récupère la configuration globale d'une année."""
-        return self.db.query(ConfigurationDeliberation).filter(
-            ConfigurationDeliberation.annee_academique_id == annee_id,
-            ConfigurationDeliberation.niveau_id == None
-        ).first()
-    
-    def get_by_niveau(
+
+    def __init__(self):
+        super().__init__(ConfigurationDeliberation)
+
+    def get_by_annee(
         self,
+        db: Session,
         annee_id: int,
-        niveau_id: int
+        niveau_id: Optional[int] = None,
+    ) -> List[ConfigurationDeliberation]:
+        """Récupère les configurations d'une année, avec filtre niveau optionnel."""
+        query = db.query(self.model).filter(
+            self.model.annee_academique_id == annee_id
+        )
+        if niveau_id is not None:
+            query = query.filter(self.model.niveau_id == niveau_id)
+        return query.order_by(self.model.niveau_id.nullsfirst()).all()
+
+    def get_globale(
+        self, db: Session, annee_id: int
+    ) -> Optional[ConfigurationDeliberation]:
+        """Récupère la configuration globale d'une année."""
+        return (
+            db.query(self.model)
+            .filter(
+                self.model.annee_academique_id == annee_id,
+                self.model.niveau_id.is_(None),
+            )
+            .first()
+        )
+
+    def get_by_niveau(
+        self, db: Session, annee_id: int, niveau_id: int
     ) -> Optional[ConfigurationDeliberation]:
         """Récupère la configuration d'un niveau pour une année."""
-        return self.db.query(ConfigurationDeliberation).filter(
-            ConfigurationDeliberation.annee_academique_id == annee_id,
-            ConfigurationDeliberation.niveau_id == niveau_id
-        ).first()
-    
+        return (
+            db.query(self.model)
+            .filter(
+                self.model.annee_academique_id == annee_id,
+                self.model.niveau_id == niveau_id,
+            )
+            .first()
+        )
+
     def get_applicable(
-        self,
-        annee_id: int,
-        niveau_id: int
+        self, db: Session, annee_id: int, niveau_id: int
     ) -> Optional[ConfigurationDeliberation]:
-        """
-        Récupère la configuration applicable (spécifique ou globale).
-        Priorité à la config spécifique au niveau.
-        """
-        config = self.get_by_niveau(annee_id, niveau_id)
+        """Récupère la configuration applicable (spécifique ou globale)."""
+        config = self.get_by_niveau(db, annee_id, niveau_id)
         if config:
             return config
-        return self.get_globale(annee_id)
-    
-    def dupliquer_vers_niveaux(
+        return self.get_globale(db, annee_id)
+
+    def find_by_annee_niveau(
         self,
-        config_source_id: int,
-        niveau_ids: List[int]
-    ) -> List[ConfigurationDeliberation]:
-        """Duplique une configuration vers plusieurs niveaux."""
-        source = self.get_by_id(config_source_id)
-        if not source:
-            return []
-        
-        configs_creees = []
-        for niveau_id in niveau_ids:
-            # Vérifier si une config existe déjà
-            existante = self.get_by_niveau(source.annee_academique_id, niveau_id)
-            if existante:
-                continue
-            
-            nouvelle = ConfigurationDeliberation(
-                annee_academique_id=source.annee_academique_id,
-                niveau_id=niveau_id,
-                periodicite=source.periodicite,
-                compensation_semestres=source.compensation_semestres,
-                note_eliminatoire=source.note_eliminatoire,
-                nombre_matieres_dette_max=source.nombre_matieres_dette_max,
-                moyenne_validation=source.moyenne_validation,
-                moyenne_passage_conditionnel=source.moyenne_passage_conditionnel,
-                credits_min_passage=source.credits_min_passage,
-                taux_presence_min=source.taux_presence_min,
-                autoriser_rattrapage=source.autoriser_rattrapage,
-                nombre_sessions_max=source.nombre_sessions_max,
-                regles_specifiques=source.regles_specifiques
-            )
-            self.db.add(nouvelle)
-            configs_creees.append(nouvelle)
-        
-        self.db.commit()
-        return configs_creees
+        db: Session,
+        annee_id: int,
+        niveau_id: Optional[int],
+    ) -> Optional[ConfigurationDeliberation]:
+        """Trouve une configuration pour une année et un niveau (None = globale)."""
+        query = db.query(self.model).filter(
+            self.model.annee_academique_id == annee_id
+        )
+        if niveau_id is None:
+            query = query.filter(self.model.niveau_id.is_(None))
+        else:
+            query = query.filter(self.model.niveau_id == niveau_id)
+        return query.first()
+
+
+configuration_deliberation_repository = ConfigurationDeliberationRepository()

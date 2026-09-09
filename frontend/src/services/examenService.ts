@@ -10,7 +10,7 @@ import {
   StatistiquesExamen,
 } from '../types/evaluation';
 
-const BASE_URL = '/examens';
+const BASE_URL = '/api/v1/examens';
 
 export interface ExamenParams {
   skip?: number;
@@ -53,6 +53,22 @@ export const examenService = {
    */
   async createExamen(data: CreateExamen): Promise<Examen> {
     const response = await api.post<Examen>(BASE_URL, data);
+    return response.data;
+  },
+
+  /** Portail enseignant - création examen avec garde-fous backend (idempotent si existe). */
+  async createExamenEnseignant(data: CreateExamen): Promise<Examen> {
+    const response = await api.post<Examen>(`${BASE_URL}/saisie-enseignant`, data);
+    return response.data;
+  },
+
+  async getExamenMatch(params: {
+    session_id: number;
+    matiere_id: number;
+    niveau_id: number;
+    type_evaluation: string;
+  }): Promise<Examen> {
+    const response = await api.get<Examen>(`${BASE_URL}/match`, { params });
     return response.data;
   },
 

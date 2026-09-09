@@ -7,7 +7,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import LoginPage from '@/pages/bootstrap/auth/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
-import ProfilePage from '@/pages/ProfilePage';
+import ProfileRedirect from '@/components/routing/ProfileRedirect';
 import AnneesScolairesPage from '@/pages/AnneesScolairesPage';
 import UniversitesPage from '@/pages/UniversitesPage';
 import EtablissementsPage from '@/pages/EtablissementsPage';
@@ -77,10 +77,31 @@ function App() {
       {/* Page démo Bootstrap */}
       <Route path="/bootstrap" element={<BootstrapDemo />} />
       
-      {/* Routes Bootstrap (nouveaux layouts) */}
-      <Route path="/admin/*" element={<BootstrapRoutes />} />
-      <Route path="/enseignant/*" element={<BootstrapRoutes />} />
-      <Route path="/etudiant/*" element={<BootstrapRoutes />} />
+      {/* Routes Bootstrap (authentification requise) */}
+      <Route
+        path="/admin/*"
+        element={
+          <ProtectedRoute portal="admin">
+            <BootstrapRoutes />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/enseignant/*"
+        element={
+          <ProtectedRoute portal="teacher">
+            <BootstrapRoutes />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/etudiant/*"
+        element={
+          <ProtectedRoute portal="student">
+            <BootstrapRoutes />
+          </ProtectedRoute>
+        }
+      />
       
       {/* Routes publiques (sans authentification) */}
       <Route path="/inscription" element={<InscriptionPubliquePage />} />
@@ -96,7 +117,6 @@ function App() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/annees-scolaires" element={<AnneesScolairesPage />} />
         <Route path="/universites" element={<UniversitesPage />} />
         <Route path="/etablissements" element={<EtablissementsPage />} />
@@ -142,6 +162,8 @@ function App() {
         <Route path="/parametrage/templates" element={<TemplatesPage />} />
         <Route path="/parametrage/pays" element={<PaysConfigPage />} />
       </Route>
+      <Route path="/profile" element={<ProfileRedirect />} />
+      <Route path="/settings" element={<Navigate to="/admin/parametrage/parametres" replace />} />
       <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />

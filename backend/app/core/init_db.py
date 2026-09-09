@@ -11,24 +11,51 @@ def create_tables() -> None:
 
 
 def init_db() -> None:
-    """Initialise la base de données avec un super utilisateur par défaut."""
+    """Initialise la base de données avec des utilisateurs par défaut."""
     db: Session = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == "admin@gestsco.com").first()
-        if not user:
-            superuser = User(
-                email="admin@gestsco.com",
-                hashed_password=get_password_hash("Admin@123"),
-                full_name="Administrateur",
-                is_active=True,
-                is_superuser=True,
-                role="admin",
-            )
-            db.add(superuser)
-            db.commit()
-            print("Super utilisateur créé : admin@gestsco.com")
-        else:
-            print("Super utilisateur existe déjà.")
+        defaults = [
+            {
+                "email": "admin@gestsco.com",
+                "password": "Admin@123",
+                "full_name": "Administrateur",
+                "is_superuser": True,
+                "role": "admin",
+            },
+            {
+                "email": "scolarite@gestsco.com",
+                "password": "Scolarite@123",
+                "full_name": "Agent Scolarité",
+                "is_superuser": False,
+                "role": "scolarite",
+            },
+            {
+                "email": "comptable@gestsco.com",
+                "password": "Comptable@123",
+                "full_name": "Agent Comptable",
+                "is_superuser": False,
+                "role": "comptable",
+            },
+        ]
+
+        for account in defaults:
+            user = db.query(User).filter(User.email == account["email"]).first()
+            if not user:
+                db.add(
+                    User(
+                        email=account["email"],
+                        hashed_password=get_password_hash(account["password"]),
+                        full_name=account["full_name"],
+                        is_active=True,
+                        is_superuser=account["is_superuser"],
+                        role=account["role"],
+                    )
+                )
+                print(f"Utilisateur créé : {account['email']}")
+            else:
+                print(f"Utilisateur existe déjà : {account['email']}")
+
+        db.commit()
     finally:
         db.close()
 

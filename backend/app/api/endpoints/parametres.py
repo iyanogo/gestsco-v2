@@ -1,9 +1,12 @@
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 from app.schemas.parametre_systeme import (
     ParametreSystemeCreate,
     ParametreSystemeUpdate,
@@ -19,6 +22,8 @@ from app.services.parametre_service import (
 )
 
 router = APIRouter()
+
+_PARAM_FIELDS = ("cle", "categorie", "valeur", "type_valeur", "libelle", "est_modifiable")
 
 
 @router.get("/", response_model=List[ParametreSystemeResponse])
@@ -77,98 +82,141 @@ def get_parametre_by_id(
 @router.post("/", response_model=ParametreSystemeResponse, status_code=status.HTTP_201_CREATED)
 def create_parametre(
     parametre_in: ParametreSystemeCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "create")),
 ):
-    """Crée un nouveau paramètre système"""
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seuls les super-utilisateurs peuvent créer des paramètres"
-        )
-    
+    """Crée un nouveau paramètre système (superuser uniquement)."""
     existing = parametre_repository.get_by_cle(db, parametre_in.cle)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Un paramètre avec la clé '{parametre_in.cle}' existe déjà"
         )
-    
-    return parametre_repository.create(db, parametre_in)
+
+    parametre = parametre_repository.create(db, parametre_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="parametre",
+        entity_id=parametre.id,
+        new_values=fields_snapshot(parametre, *_PARAM_FIELDS),
+    )
+    return parametre
 
 
 @router.put("/{parametre_id}", response_model=ParametreSystemeResponse)
 def update_parametre(
     parametre_id: int,
     parametre_in: ParametreSystemeUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "update")),
 ):
-    """Met à jour un paramètre système"""
+    """Met à jour un paramètre système (superuser uniquement)."""
     parametre = parametre_repository.get_by_id(db, parametre_id)
     if not parametre:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Paramètre non trouvé"
         )
-    
-    if not parametre.est_modifiable and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Ce paramètre n'est pas modifiable"
-        )
-    
-    return parametre_repository.update(db, parametre, parametre_in)
+
+    old_snapshot = fields_snapshot(parametre, *_PARAM_FIELDS)
+    updated = parametre_repository.update(db, parametre, parametre_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="parametre",
+        entity_id=parametre_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_PARAM_FIELDS),
+    )
+    return updated
 
 
 @router.patch("/valeur/{cle}")
 def update_parametre_valeur(
     cle: str,
     data: ParametreSystemeUpdateValeur,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "update")),
 ):
-    """Met à jour uniquement la valeur d'un paramètre"""
+    """Met à jour uniquement la valeur d'un paramètre (superuser uniquement)."""
+    parametre = parametre_repository.get_by_cle(db, cle)
+    if not parametre:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Paramètre '{cle}' non trouvé",
+        )
+    old_snapshot = fields_snapshot(parametre, *_PARAM_FIELDS)
     success = set_parametre(db, cle, data.valeur, current_user.id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Impossible de mettre à jour le paramètre"
         )
+    updated = parametre_repository.get_by_cle(db, cle)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="parametre",
+        entity_id=updated.id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_PARAM_FIELDS),
+    )
     return {"message": "Paramètre mis à jour", "cle": cle, "valeur": data.valeur}
 
 
 @router.delete("/{parametre_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_parametre(
     parametre_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "delete")),
 ):
-    """Supprime un paramètre système"""
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seuls les super-utilisateurs peuvent supprimer des paramètres"
-        )
-    
-    if not parametre_repository.delete(db, parametre_id):
+    """Supprime un paramètre système (superuser uniquement)."""
+    parametre = parametre_repository.get_by_id(db, parametre_id)
+    if not parametre:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Paramètre non trouvé"
         )
+    old_snapshot = fields_snapshot(parametre, *_PARAM_FIELDS)
+    parametre_repository.delete(db, parametre_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="parametre",
+        entity_id=parametre_id,
+        old_values=old_snapshot,
+    )
 
 
 @router.post("/initialiser")
 def initialiser_parametres(
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "create")),
 ):
-    """Initialise les paramètres par défaut"""
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seuls les super-utilisateurs peuvent initialiser les paramètres"
-        )
-    
+    """Initialise les paramètres par défaut (superuser uniquement)."""
     result = initialiser_parametres_defaut(db)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="parametre",
+        entity_id="initialiser",
+        new_values=result,
+        details="initialiser",
+    )
     return {"message": "Paramètres initialisés", **result}

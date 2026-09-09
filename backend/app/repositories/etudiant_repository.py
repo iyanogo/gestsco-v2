@@ -34,6 +34,10 @@ class EtudiantRepository(BaseRepository[Etudiant, EtudiantCreate, EtudiantUpdate
         """
         return db.query(Etudiant).filter(Etudiant.matricule == matricule).first()
 
+    def get_by_user_id(self, db: Session, user_id: int) -> Optional[Etudiant]:
+        """Récupère un étudiant par l'ID de son compte utilisateur."""
+        return db.query(Etudiant).filter(Etudiant.user_id == user_id).first()
+
     def get_by_email(self, db: Session, email: str) -> Optional[Etudiant]:
         """
         Récupère un étudiant par son email.

@@ -3,10 +3,13 @@ import { Row, Col, Button, Badge, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../../../components/layouts';
 import { DataCard, DataTable, SearchFilter, ConfirmModal, Avatar, Column } from '../../../components/ui';
+import { usePermissions } from '../../../hooks/usePermissions';
 import { getEtudiants, deleteEtudiant } from '../../../services/etudiantService';
 import type { Etudiant } from '../../../types/etudiant';
 
 const EtudiantsListPage: React.FC = () => {
+  const { moduleActions } = usePermissions();
+  const { canCreate, canUpdate, canDelete, canValidate, canExport } = moduleActions('etudiants');
   const [etudiants, setEtudiants] = useState<Etudiant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,12 +81,16 @@ const EtudiantsListPage: React.FC = () => {
         <Link to={`/admin/etudiants/${item.id}`} className="btn btn-sm btn-outline-info" onClick={(e) => e.stopPropagation()}>
           <i className="bi bi-eye"></i>
         </Link>
-        <Link to={`/admin/etudiants/${item.id}/edit`} className="btn btn-sm btn-outline-primary" onClick={(e) => e.stopPropagation()}>
-          <i className="bi bi-pencil"></i>
-        </Link>
-        <Button size="sm" variant="outline-danger" onClick={(e) => { e.stopPropagation(); handleDeleteClick(item); }}>
-          <i className="bi bi-trash"></i>
-        </Button>
+        {canUpdate && (
+          <Link to={`/admin/etudiants/${item.id}/edit`} className="btn btn-sm btn-outline-primary" onClick={(e) => e.stopPropagation()}>
+            <i className="bi bi-pencil"></i>
+          </Link>
+        )}
+        {canDelete && (
+          <Button size="sm" variant="outline-danger" onClick={(e) => { e.stopPropagation(); handleDeleteClick(item); }}>
+            <i className="bi bi-trash"></i>
+          </Button>
+        )}
       </div>
     )}
   ];
@@ -136,14 +143,18 @@ const EtudiantsListPage: React.FC = () => {
         ]}
         actions={
           <div className="d-flex gap-2">
-            <Button variant="outline-primary">
-              <i className="bi bi-download me-2"></i>
-              Exporter
-            </Button>
-            <Link to="/admin/etudiants/nouveau" className="btn btn-primary">
-              <i className="bi bi-plus-lg me-2"></i>
-              Nouvel étudiant
-            </Link>
+            {canExport && (
+              <Button variant="outline-primary">
+                <i className="bi bi-download me-2"></i>
+                Exporter
+              </Button>
+            )}
+            {canCreate && (
+              <Link to="/admin/etudiants/nouveau" className="btn btn-primary">
+                <i className="bi bi-plus-lg me-2"></i>
+                Nouvel étudiant
+              </Link>
+            )}
           </div>
         }
       />
@@ -200,17 +211,21 @@ const EtudiantsListPage: React.FC = () => {
         title={`Liste des étudiants (${filteredData.length})`}
         actions={
           <div className="d-flex gap-2">
-            {selectedIds.length > 0 && (
+            {selectedIds.length > 0 && (canValidate || canDelete) && (
               <div className="d-flex gap-2 me-3">
                 <Badge bg="primary" className="d-flex align-items-center px-3">
                   {selectedIds.length} sélectionné(s)
                 </Badge>
-                <Button size="sm" variant="outline-success" onClick={() => handleBulkAction('validate')}>
-                  <i className="bi bi-check-lg me-1"></i>Valider
-                </Button>
-                <Button size="sm" variant="outline-danger" onClick={() => handleBulkAction('delete')}>
-                  <i className="bi bi-trash me-1"></i>Supprimer
-                </Button>
+                {canValidate && (
+                  <Button size="sm" variant="outline-success" onClick={() => handleBulkAction('validate')}>
+                    <i className="bi bi-check-lg me-1"></i>Valider
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button size="sm" variant="outline-danger" onClick={() => handleBulkAction('delete')}>
+                    <i className="bi bi-trash me-1"></i>Supprimer
+                  </Button>
+                )}
               </div>
             )}
             <Button variant="outline-secondary" size="sm" onClick={loadData}>

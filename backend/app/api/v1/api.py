@@ -48,6 +48,8 @@ from app.api.v1.endpoints import (
     semestres,
     stages,
     soutenances,
+    configurations_deliberation,
+    administration,
 )
 from app.api.endpoints import (
     parametres,
@@ -119,3 +121,13 @@ api_router.include_router(modules_systeme.router, prefix="/modules-systeme", tag
 api_router.include_router(semestres.router, prefix="/semestres", tags=["Semestres LMD"])
 api_router.include_router(stages.router, prefix="/stages", tags=["Stages"])
 api_router.include_router(soutenances.router, prefix="/soutenances", tags=["Soutenances"])
+api_router.include_router(
+    configurations_deliberation.router,
+    prefix="/configurations-deliberation",
+    tags=["Configurations Délibération"],
+)
+api_router.include_router(
+    administration.router,
+    prefix="/administration",
+    tags=["Administration"],
+)

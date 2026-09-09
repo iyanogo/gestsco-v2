@@ -7,7 +7,7 @@ import {
   Seance 
 } from '../types/emploiTemps';
 
-const BASE_URL = '/salles';
+const BASE_URL = '/api/v1/salles';
 
 export interface GetSallesParams {
   skip?: number;

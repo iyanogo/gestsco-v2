@@ -8,6 +8,7 @@ import { Row, Col, Card, Button, Badge, Form, Alert, Tab, Tabs } from 'react-boo
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../components/layouts';
 import { DataCard, DataTable, Column } from '../../components/ui';
+import { CalendrierSoutenances } from '../../components/soutenances';
 import soutenanceService from '../../services/soutenanceService';
 import type { Soutenance } from '../../types/anneeAcademique';
 import { STATUTS_SOUTENANCE } from '../../types/anneeAcademique';
@@ -29,12 +30,16 @@ const SoutenancesPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [all, aVenir] = await Promise.all([
-        soutenanceService.getSoutenances(),
-        soutenanceService.getSoutenancesAVenir(14),
-      ]);
+      const all = await soutenanceService.getSoutenances();
       setSoutenances(all);
-      setSoutenancesAVenir(aVenir);
+
+      try {
+        const aVenir = await soutenanceService.getSoutenancesAVenir(14);
+        setSoutenancesAVenir(aVenir);
+      } catch (err) {
+        console.warn('Soutenances à venir indisponibles:', err);
+        setSoutenancesAVenir([]);
+      }
     } catch (err) {
       console.error('Erreur lors du chargement des soutenances:', err);
       setError('Impossible de charger les soutenances.');
@@ -120,7 +125,7 @@ const SoutenancesPage: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline-primary"
-            onClick={() => navigate(`/stages/${item.stage_id}`)}
+            onClick={() => navigate(`/admin/stages/${item.stage_id}`)}
           >
             <i className="bi bi-eye"></i>
           </Button>
@@ -153,7 +158,7 @@ const SoutenancesPage: React.FC = () => {
         title="Soutenances"
         subtitle="Calendrier et gestion des soutenances"
         breadcrumbs={[
-          { label: 'Stages', path: '/stages' },
+          { label: 'Stages', path: '/admin/stages' },
           { label: 'Soutenances' }
         ]}
         actions={
@@ -213,7 +218,7 @@ const SoutenancesPage: React.FC = () => {
                 <Col md={3} key={s.id}>
                   <Card 
                     className="h-100 cursor-pointer hover-shadow"
-                    onClick={() => navigate(`/stages/${s.stage_id}`)}
+                    onClick={() => navigate(`/admin/stages/${s.stage_id}`)}
                     style={{ cursor: 'pointer' }}
                   >
                     <Card.Body>
@@ -263,23 +268,16 @@ const SoutenancesPage: React.FC = () => {
               data={filteredSoutenances}
               loading={loading}
               emptyMessage="Aucune soutenance trouvée"
-              onRowClick={(item) => navigate(`/stages/${item.stage_id}`)}
+              onRowClick={(item) => navigate(`/admin/stages/${item.stage_id}`)}
             />
           </DataCard>
         </Tab>
         
         <Tab eventKey="calendrier" title={<><i className="bi bi-calendar3 me-1"></i>Calendrier</>}>
-          <Card>
-            <Card.Body className="text-center py-5">
-              <i className="bi bi-calendar3 fs-1 text-muted mb-3 d-block"></i>
-              <p className="text-muted">
-                Vue calendrier disponible dans une version ultérieure.
-              </p>
-              <p className="small text-muted">
-                Utilisez la vue liste pour voir toutes les soutenances.
-              </p>
-            </Card.Body>
-          </Card>
+          <CalendrierSoutenances
+            soutenances={soutenances}
+            onSelectSoutenance={(s) => navigate(`/admin/stages/${s.stage_id}`)}
+          />
         </Tab>
       </Tabs>
     </div>

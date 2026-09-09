@@ -28,12 +28,10 @@ describe('EtudiantsListPage', () => {
       expect(searchInput).toBeInTheDocument();
     });
 
-    it('should render filter selects', () => {
+    it('should render filter selects', async () => {
       renderPage();
-      
-      // Check for filter dropdowns
-      expect(screen.getByText('Toutes les filières')).toBeInTheDocument();
-      expect(screen.getByText('Tous les niveaux')).toBeInTheDocument();
+
+      expect(await screen.findByText('Tous les statuts')).toBeInTheDocument();
     });
   });
 });

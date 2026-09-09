@@ -5,6 +5,43 @@ from sqlalchemy.orm import Session
 from app.repositories.template_document_repository import template_document_repository
 from app.repositories.modele_email_repository import modele_email_repository
 from app.repositories.modele_sms_repository import modele_sms_repository
+from app.utils.pdf_generator import html_to_pdf, PDFGenerationError, get_active_etablissement_config
+
+
+def enrich_template_variables(
+    db: Session,
+    variables: Dict[str, Any],
+    etablissement_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Complète les variables template avec la configuration établissement active."""
+    merged = dict(variables)
+    config = None
+    if etablissement_id:
+        from app.repositories.configuration_etablissement_repository import (
+            configuration_etablissement_repository,
+        )
+
+        config = configuration_etablissement_repository.get_active(db, etablissement_id)
+    if not config:
+        config = get_active_etablissement_config(db)
+
+    if not config:
+        merged.setdefault("logo_url", "")
+        return merged
+
+    defaults = {
+        "logo_url": config.logo_url or "",
+        "nom_etablissement": config.nom_complet,
+        "sigle_etablissement": config.sigle or config.nom_court,
+        "adresse_etablissement": config.adresse_complete or "",
+        "telephone_etablissement": config.telephone_principal or "",
+        "email_etablissement": config.email_principal or config.email_scolarite or "",
+        "ville": config.ville or "",
+    }
+    for key, value in defaults.items():
+        if key not in merged or merged.get(key) in (None, ""):
+            merged[key] = value
+    return merged
 
 
 def render_document(db: Session, code_template: str, variables: Dict[str, Any], etablissement_id: Optional[int] = None) -> str:
@@ -13,23 +50,16 @@ def render_document(db: Session, code_template: str, variables: Dict[str, Any], 
     if not template:
         return ""
     
-    return template_document_repository.render_template(db, template.id, variables)
+    enriched = enrich_template_variables(db, variables, etablissement_id)
+    return template_document_repository.render_template(db, template.id, enriched)
 
 
 def render_document_pdf(db: Session, code_template: str, variables: Dict[str, Any], etablissement_id: Optional[int] = None) -> bytes:
-    """Génère un PDF à partir du template"""
+    """Génère un PDF à partir du template HTML (weasyprint)."""
     html = render_document(db, code_template, variables, etablissement_id)
     if not html:
         return b""
-    
-    # Utiliser weasyprint ou autre librairie pour générer le PDF
-    try:
-        from weasyprint import HTML
-        pdf = HTML(string=html).write_pdf()
-        return pdf
-    except ImportError:
-        # Fallback si weasyprint n'est pas installé
-        return html.encode('utf-8')
+    return html_to_pdf(html)
 
 
 def render_email(db: Session, code_modele: str, variables: Dict[str, Any], etablissement_id: Optional[int] = None) -> Dict[str, str]:

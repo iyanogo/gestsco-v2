@@ -2,11 +2,12 @@
 Schémas Pydantic pour l'année académique
 """
 
-import re
 from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.schemas.validators import validate_annee_academique_code
 
 
 class AnneeAcademiqueBase(BaseModel):
@@ -25,12 +26,7 @@ class AnneeAcademiqueBase(BaseModel):
     @classmethod
     def validate_code(cls, v: str) -> str:
         """Valide le format du code (ex: 2024-2025)."""
-        if not re.match(r"^\d{4}-\d{4}$", v):
-            raise ValueError("Le code doit être au format YYYY-YYYY (ex: 2024-2025)")
-        years = v.split("-")
-        if int(years[1]) != int(years[0]) + 1:
-            raise ValueError("L'année de fin doit être l'année de début + 1")
-        return v
+        return validate_annee_academique_code(v)
 
     @field_validator("date_fin")
     @classmethod
@@ -70,8 +66,8 @@ class AnneeAcademiqueUpdate(BaseModel):
     @classmethod
     def validate_code(cls, v: Optional[str]) -> Optional[str]:
         """Valide le format du code si fourni."""
-        if v is not None and not re.match(r"^\d{4}-\d{4}$", v):
-            raise ValueError("Le code doit être au format YYYY-YYYY (ex: 2024-2025)")
+        if v is not None:
+            return validate_annee_academique_code(v, check_consecutive_years=False)
         return v
 
 

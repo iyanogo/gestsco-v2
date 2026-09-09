@@ -4,16 +4,26 @@ Activation/désactivation des modules par université et année académique.
 """
 
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.api.deps import get_db, get_current_active_user
+from app.core.permissions import is_admin_user
 from app.models.user import User
 from app.models.module_systeme import ModuleSysteme
 from app.services.module_service import ModuleService, ModuleServiceError
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter()
+
+_MODULE_ACTIF_FIELDS = (
+    "module_id",
+    "universite_id",
+    "annee_academique_id",
+    "est_actif",
+)
 
 
 # Schémas Pydantic
@@ -67,7 +77,8 @@ async def list_modules_systeme(
 @router.post("/{code}/activer", summary="Activer un module")
 async def activer_module(
     code: str,
-    request: ActiverModuleRequest,
+    body: ActiverModuleRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -79,7 +90,7 @@ async def activer_module(
     
     **Permissions requises**: Admin
     """
-    if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'superadmin']:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent activer des modules"
@@ -90,10 +101,20 @@ async def activer_module(
     try:
         module_actif = service.activer_module(
             module_code=code,
-            universite_id=request.universite_id,
-            annee_id=request.annee_id,
+            universite_id=body.universite_id,
+            annee_id=body.annee_id,
             user_id=current_user.id,
-            config=request.configuration
+            config=body.configuration
+        )
+        audit_and_commit(
+            db,
+            request=http_request,
+            user=current_user,
+            action="update",
+            entity_type="module_systeme",
+            entity_id=module_actif.id,
+            new_values=fields_snapshot(module_actif, *_MODULE_ACTIF_FIELDS),
+            details=f"activer:{code}",
         )
         
         return {
@@ -117,7 +138,8 @@ async def activer_module(
 @router.post("/{code}/desactiver", summary="Désactiver un module")
 async def desactiver_module(
     code: str,
-    request: DesactiverModuleRequest,
+    body: DesactiverModuleRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -129,7 +151,7 @@ async def desactiver_module(
     
     **Permissions requises**: Admin
     """
-    if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'superadmin']:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent désactiver des modules"
@@ -140,9 +162,19 @@ async def desactiver_module(
     try:
         module_actif = service.desactiver_module(
             module_code=code,
-            universite_id=request.universite_id,
-            annee_id=request.annee_id,
+            universite_id=body.universite_id,
+            annee_id=body.annee_id,
             user_id=current_user.id
+        )
+        audit_and_commit(
+            db,
+            request=http_request,
+            user=current_user,
+            action="update",
+            entity_type="module_systeme",
+            entity_id=module_actif.id,
+            new_values=fields_snapshot(module_actif, *_MODULE_ACTIF_FIELDS),
+            details=f"desactiver:{code}",
         )
         
         return {

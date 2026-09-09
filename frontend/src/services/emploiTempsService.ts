@@ -6,7 +6,7 @@ import {
   EmploiTempsWithSeances 
 } from '../types/emploiTemps';
 
-const BASE_URL = '/emplois-temps';
+const BASE_URL = '/api/v1/emplois-temps';
 
 export interface GetEmploisTempsParams {
   skip?: number;

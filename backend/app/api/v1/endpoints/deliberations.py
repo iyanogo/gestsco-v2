@@ -4,14 +4,16 @@ Endpoints API pour la gestion des délibérations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_active_user
-from app.core.permissions import get_current_scolarite_user, get_current_superuser
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import deliberation_repository
+from app.utils.administration_events import audit_and_commit, audit_publish
+from app.utils.audit_snapshots import deliberation_snapshot
 from app.schemas.deliberation import (
     Deliberation,
     DeliberationCreate,
@@ -39,7 +41,7 @@ async def list_deliberations(
     filiere_id: Optional[int] = Query(None, description="Filtrer par filière"),
     statut: Optional[str] = Query(None, description="Filtrer par statut"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "read")),
 ):
     """
     Récupère la liste des délibérations avec pagination et filtres.
@@ -109,22 +111,34 @@ async def get_statistiques_deliberation(
 @router.post("/", response_model=Deliberation, status_code=status.HTTP_201_CREATED, summary="Créer une délibération")
 async def create_deliberation(
     deliberation_in: DeliberationCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "create")),
 ):
     """
     Crée une nouvelle délibération.
     
     Requiert les droits admin ou scolarité.
     """
-    return deliberation_repository.create(db, deliberation_in)
+    deliberation = deliberation_repository.create(db, deliberation_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="deliberation",
+        entity_id=deliberation.id,
+        new_values=deliberation_snapshot(deliberation),
+    )
+    return deliberation
 
 
 @router.post("/creer", summary="Créer une délibération avec calcul automatique")
 async def creer_deliberation_auto(
-    request: CreerDeliberationRequest,
+    body: CreerDeliberationRequest,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "create")),
 ):
     """
     Crée une nouvelle délibération avec calcul automatique des statistiques.
@@ -133,14 +147,24 @@ async def creer_deliberation_auto(
     """
     deliberation = deliberation_repository.creer_deliberation(
         db,
-        session_id=request.session_id,
-        niveau_id=request.niveau_id,
-        filiere_id=request.filiere_id,
-        type_deliberation=request.type_deliberation,
-        semestre=request.semestre,
-        president_id=request.president_id
+        session_id=body.session_id,
+        niveau_id=body.niveau_id,
+        filiere_id=body.filiere_id,
+        type_deliberation=body.type_deliberation,
+        semestre=body.semestre,
+        president_id=body.president_id
     )
-    
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="deliberation",
+        entity_id=deliberation.id,
+        new_values=deliberation_snapshot(deliberation),
+        details="auto",
+    )
+
     return {
         "message": "Délibération créée avec succès",
         "deliberation": deliberation
@@ -151,8 +175,9 @@ async def creer_deliberation_auto(
 async def update_deliberation(
     deliberation_id: int,
     deliberation_in: DeliberationUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "update")),
 ):
     """
     Met à jour une délibération existante.
@@ -173,56 +198,90 @@ async def update_deliberation(
             detail="Cette délibération est publiée et ne peut plus être modifiée"
         )
     
-    return deliberation_repository.update(db, deliberation_id, deliberation_in)
+    old_snapshot = deliberation_snapshot(deliberation)
+    updated = deliberation_repository.update(db, deliberation_id, deliberation_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="deliberation",
+        entity_id=deliberation_id,
+        old_values=old_snapshot,
+        new_values=deliberation_snapshot(updated),
+    )
+    return updated
 
 
 @router.patch("/{deliberation_id}/terminer", response_model=Deliberation, summary="Terminer une délibération")
 async def terminer_deliberation(
     deliberation_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "update")),
 ):
     """
     Termine une délibération.
     
     Requiert les droits admin ou scolarité.
     """
+    existing = deliberation_repository.get_by_id(db, deliberation_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Délibération non trouvée")
+    old_snapshot = deliberation_snapshot(existing)
     deliberation = deliberation_repository.terminer_deliberation(db, deliberation_id)
-    if not deliberation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Délibération non trouvée"
-        )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="deliberation",
+        entity_id=deliberation_id,
+        old_values=old_snapshot,
+        new_values=deliberation_snapshot(deliberation),
+        details="terminer",
+    )
     return deliberation
 
 
 @router.patch("/{deliberation_id}/valider", response_model=Deliberation, summary="Valider une délibération")
 async def valider_deliberation(
     deliberation_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "validate")),
 ):
     """
     Valide une délibération.
     
-    Requiert les droits superuser.
+    Requiert les droits admin ou scolarité (matrice RBAC).
     """
+    existing = deliberation_repository.get_by_id(db, deliberation_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Délibération non trouvée")
+    old_snapshot = deliberation_snapshot(existing)
     deliberation = deliberation_repository.valider_deliberation(
         db, deliberation_id, current_user.id
     )
-    if not deliberation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Délibération non trouvée"
-        )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="validate",
+        entity_type="deliberation",
+        entity_id=deliberation_id,
+        old_values=old_snapshot,
+        new_values=deliberation_snapshot(deliberation),
+    )
     return deliberation
 
 
 @router.patch("/{deliberation_id}/publier", response_model=Deliberation, summary="Publier une délibération")
 async def publier_deliberation(
     deliberation_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "validate")),
 ):
     """
     Publie une délibération (rend les résultats visibles aux étudiants).
@@ -243,28 +302,49 @@ async def publier_deliberation(
             detail="La délibération doit être validée avant d'être publiée"
         )
     
+    old_snapshot = deliberation_snapshot(deliberation)
     deliberation = deliberation_repository.publier_deliberation(db, deliberation_id)
+    audit_publish(
+        db,
+        request=request,
+        user=current_user,
+        entity_type="deliberation",
+        entity_id=deliberation_id,
+        old_values=old_snapshot,
+        new_values=deliberation_snapshot(deliberation),
+    )
     return deliberation
 
 
 @router.patch("/{deliberation_id}/actualiser-stats", summary="Actualiser les statistiques")
 async def actualiser_statistiques_deliberation(
     deliberation_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "update")),
 ):
     """
     Actualise les statistiques d'une délibération.
     
     Requiert les droits admin ou scolarité.
     """
+    existing = deliberation_repository.get_by_id(db, deliberation_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Délibération non trouvée")
+    old_snapshot = deliberation_snapshot(existing)
     deliberation = deliberation_repository.actualiser_statistiques(db, deliberation_id)
-    if not deliberation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Délibération non trouvée"
-        )
-    
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="calculate",
+        entity_type="deliberation",
+        entity_id=deliberation_id,
+        old_values=old_snapshot,
+        new_values=deliberation_snapshot(deliberation),
+        details="actualiser-stats",
+    )
+
     return {
         "message": "Statistiques actualisées avec succès",
         "deliberation": deliberation
@@ -274,13 +354,14 @@ async def actualiser_statistiques_deliberation(
 @router.delete("/{deliberation_id}", summary="Supprimer une délibération")
 async def delete_deliberation(
     deliberation_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("evaluations_deliberations", "delete")),
 ):
     """
     Supprime une délibération.
     
-    Requiert les droits superuser.
+    Requiert les droits admin ou scolarité (matrice RBAC).
     """
     deliberation = deliberation_repository.get_by_id(db, deliberation_id)
     if not deliberation:
@@ -296,10 +377,20 @@ async def delete_deliberation(
             detail="Cette délibération est publiée et ne peut pas être supprimée"
         )
     
+    old_snapshot = deliberation_snapshot(deliberation)
     success = deliberation_repository.delete(db, deliberation_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Délibération non trouvée"
+            detail="Délibération non trouvée",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="deliberation",
+        entity_id=deliberation_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Délibération supprimée avec succès"}

@@ -16,3 +16,6 @@ export { default as MesPresences } from './MesPresences';
 export { default as ProchainCours } from './ProchainCours';
 export { default as DisponibiliteSallesDialog } from './DisponibiliteSallesDialog';
 export { default as ConflitsDialog } from './ConflitsDialog';
+export { default as EmploiTempsPlanning } from './EmploiTempsPlanning';
+export { default as ReservationsManagement } from './ReservationsManagement';
+export { default as PresencesManagement } from './PresencesManagement';

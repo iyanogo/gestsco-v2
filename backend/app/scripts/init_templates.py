@@ -103,7 +103,7 @@ body { font-family: Arial, sans-serif; margin: 20px; }
     <p class="reference">N° {{ numero_attestation }}</p>
     
     <div class="content">
-        <p>Le Directeur de {{ nom_etablissement }} atteste que:</p>
+        <p>Le Directeur de l'{{ nom_etablissement }} atteste que:</p>
         
         <p class="student-name">{{ civilite }} {{ nom_complet }}</p>
         

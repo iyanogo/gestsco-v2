@@ -186,6 +186,12 @@ export interface Stage {
   observations?: string;
   created_at?: string;
   updated_at?: string;
+  etudiant_nom?: string;
+  etudiant_prenom?: string;
+  etudiant_matricule?: string;
+  matiere_code?: string;
+  matiere_libelle?: string;
+  niveau_libelle?: string;
 }
 
 export interface CreateStage {

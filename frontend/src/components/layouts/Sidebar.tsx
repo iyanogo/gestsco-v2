@@ -9,6 +9,10 @@ export interface MenuItem {
   path?: string;
   badge?: string | number;
   children?: MenuItem[];
+  /** Rôles autorisés (si omis, visible selon les règles de chemin RBAC) */
+  roles?: string[];
+  /** Réservé aux super-administrateurs */
+  superuserOnly?: boolean;
 }
 
 export interface SidebarProps {
@@ -17,7 +21,9 @@ export interface SidebarProps {
   brandIcon?: string;
   collapsed?: boolean;
   onToggle?: () => void;
-  userRole?: 'admin' | 'teacher' | 'student';
+  userRole?: 'admin' | 'teacher' | 'student' | 'scolarite' | 'comptable';
+  /** Libellé affiché en bas de la sidebar (ex. rôle utilisateur) */
+  footerLabel?: string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -25,7 +31,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   brandName = 'GestSco',
   brandIcon = 'GS',
   collapsed = false,
-  userRole = 'admin'
+  userRole = 'admin',
+  footerLabel,
 }) => {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<string[]>([]);
@@ -100,6 +107,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
+  const resolvedFooterLabel =
+    footerLabel ??
+    ({
+      admin: 'Portail admin',
+      scolarite: 'Scolarité',
+      comptable: 'Comptabilité',
+      teacher: 'Espace enseignant',
+      student: 'Espace étudiant',
+    }[userRole] ?? 'GestSco');
+
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand">
@@ -116,11 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-footer">
         <div className="d-flex align-items-center text-white-50">
           <i className="bi bi-shield-check me-2"></i>
-          <small className="nav-link-text">
-            {userRole === 'admin' && 'Administration'}
-            {userRole === 'teacher' && 'Espace Enseignant'}
-            {userRole === 'student' && 'Espace Étudiant'}
-          </small>
+          <small className="nav-link-text">{resolvedFooterLabel}</small>
         </div>
       </div>
     </aside>

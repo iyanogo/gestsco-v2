@@ -4,12 +4,12 @@ Endpoints API pour la gestion des salles
 from datetime import date, time
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
-from app.core.permissions import get_current_scolarite_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories.salle_repository import salle_repository
 from app.repositories.seance_repository import seance_repository
@@ -20,8 +20,12 @@ from app.schemas.salle import (
     SalleWithBatiment,
     SalleWithDisponibilite,
 )
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/salles", tags=["Salles"])
+
+_SALLE_FIELDS = ("code", "libelle", "batiment_id", "type_salle", "capacite", "is_active")
 
 
 @router.get("/", response_model=List[Salle])
@@ -115,8 +119,9 @@ def get_occupation_salle(
 @router.post("/", response_model=Salle, status_code=status.HTTP_201_CREATED)
 def create_salle(
     salle_in: SalleCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user)
+    current_user: User = Depends(require_permission("edt", "create"))
 ):
     """Crée une nouvelle salle"""
     # Vérifier si le code existe déjà
@@ -126,15 +131,26 @@ def create_salle(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Une salle avec ce code existe déjà"
         )
-    return salle_repository.create(db, salle_in)
+    salle = salle_repository.create(db, salle_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="salle",
+        entity_id=salle.id,
+        new_values=fields_snapshot(salle, *_SALLE_FIELDS),
+    )
+    return salle
 
 
 @router.put("/{salle_id}", response_model=Salle)
 def update_salle(
     salle_id: int,
     salle_in: SalleUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user)
+    current_user: User = Depends(require_permission("edt", "update"))
 ):
     """Met à jour une salle"""
     salle = salle_repository.get_by_id(db, salle_id)
@@ -153,14 +169,27 @@ def update_salle(
                 detail="Une salle avec ce code existe déjà"
             )
     
-    return salle_repository.update(db, salle_id, salle_in)
+    old_snapshot = fields_snapshot(salle, *_SALLE_FIELDS)
+    updated = salle_repository.update(db, salle_id, salle_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="salle",
+        entity_id=salle_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_SALLE_FIELDS),
+    )
+    return updated
 
 
 @router.delete("/{salle_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_salle(
     salle_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user)
+    current_user: User = Depends(require_permission("edt", "delete"))
 ):
     """Supprime une salle"""
     salle = salle_repository.get_by_id(db, salle_id)
@@ -169,5 +198,15 @@ def delete_salle(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Salle non trouvée"
         )
+    old_snapshot = fields_snapshot(salle, *_SALLE_FIELDS)
     salle_repository.delete(db, salle_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="salle",
+        entity_id=salle_id,
+        old_values=old_snapshot,
+    )
     return None

@@ -1,17 +1,22 @@
 """
 Endpoints API pour la gestion des départements.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
 from app.models.user import User
 from app.repositories import departement_repository, filiere_repository, etablissement_repository
 from app.schemas.departement import Departement, DepartementCreate, DepartementUpdate
 from app.schemas.filiere import Filiere
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
+from app.utils.rbac_resolver import require_permission
 
 router = APIRouter(prefix="/departements", tags=["Départements"])
+
+_DEPT_FIELDS = ("code", "libelle", "etablissement_id")
 
 
 @router.get(
@@ -90,8 +95,9 @@ def get_departement(
 )
 def create_departement(
     departement_in: DepartementCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """Crée un nouveau département."""
     if not etablissement_repository.exists(db, departement_in.etablissement_id):
@@ -105,7 +111,17 @@ def create_departement(
             detail=f"Le code '{departement_in.code}' existe déjà",
         )
     try:
-        return departement_repository.create(db, departement_in)
+        departement = departement_repository.create(db, departement_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="departement",
+            entity_id=departement.id,
+            new_values=fields_snapshot(departement, *_DEPT_FIELDS),
+        )
+        return departement
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -123,8 +139,9 @@ def create_departement(
 def update_departement(
     departement_id: int,
     departement_in: DepartementUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Met à jour un département."""
     departement = departement_repository.get_by_id(db, departement_id)
@@ -147,8 +164,20 @@ def update_departement(
                 detail=f"Le code '{departement_in.code}' existe déjà",
             )
     
+    old_snapshot = fields_snapshot(departement, *_DEPT_FIELDS)
     try:
-        return departement_repository.update(db, departement_id, departement_in)
+        updated = departement_repository.update(db, departement_id, departement_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="departement",
+            entity_id=departement_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_DEPT_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -165,15 +194,32 @@ def update_departement(
 )
 def delete_departement(
     departement_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """Supprime un département (suppression logique)."""
+    departement = departement_repository.get_by_id(db, departement_id)
+    if not departement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Département non trouvé",
+        )
+    old_snapshot = fields_snapshot(departement, *_DEPT_FIELDS)
     if not departement_repository.delete(db, departement_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Département non trouvé",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="departement",
+        entity_id=departement_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Département supprimé avec succès"}
 
 
@@ -197,4 +243,8 @@ def get_departement_filieres(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Département non trouvé",
         )
-    return filiere_repository.get_by_departement(db, departement_id, skip=skip, limit=limit)
+    if not departement.etablissement_id:
+        return []
+    return filiere_repository.get_by_etablissement(
+        db, departement.etablissement_id, skip=skip, limit=limit
+    )

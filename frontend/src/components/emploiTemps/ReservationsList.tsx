@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -36,6 +36,7 @@ interface ReservationsListProps {
   onView?: (reservation: ReservationSalle) => void;
   showActions?: boolean;
   showApprovalActions?: boolean;
+  fetchMode?: 'all' | 'mes' | 'en-attente';
   refresh?: number;
 }
 
@@ -47,6 +48,7 @@ const ReservationsList: React.FC<ReservationsListProps> = ({
   onView,
   showActions = true,
   showApprovalActions = false,
+  fetchMode = 'all',
   refresh,
 }) => {
   const [reservations, setReservations] = useState<ReservationSalle[]>([]);
@@ -58,21 +60,24 @@ const ReservationsList: React.FC<ReservationsListProps> = ({
     statut: '',
   });
 
-  useEffect(() => {
-    loadData();
-  }, [refresh]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [reservationsData, sallesData] = await Promise.all([
-        reservationSalleService.getReservations({
+      let reservationsData: ReservationSalle[];
+      if (fetchMode === 'mes') {
+        reservationsData = await reservationSalleService.getMesReservations(
+          filters.statut || undefined
+        );
+      } else if (fetchMode === 'en-attente') {
+        reservationsData = await reservationSalleService.getReservationsEnAttente();
+      } else {
+        reservationsData = await reservationSalleService.getReservations({
           salle_id: filters.salle_id ? Number(filters.salle_id) : undefined,
           date: filters.date ? format(filters.date, 'yyyy-MM-dd') : undefined,
           statut: filters.statut || undefined,
-        }),
-        salleService.getSalles(),
-      ]);
+        });
+      }
+      const sallesData = await salleService.getSalles();
       setReservations(reservationsData);
       setSalles(sallesData);
     } catch (error) {
@@ -80,11 +85,11 @@ const ReservationsList: React.FC<ReservationsListProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchMode, filters]);
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [loadData, refresh]);
 
   const getSalleLibelle = (salle_id: number) => {
     const salle = salles.find((s) => s.id === salle_id);

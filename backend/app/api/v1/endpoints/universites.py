@@ -1,17 +1,22 @@
 """
 Endpoints API pour la gestion des universités.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import universite_repository, etablissement_repository
 from app.schemas.universite import Universite, UniversiteCreate, UniversiteUpdate
 from app.schemas.etablissement import Etablissement
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/universites", tags=["Universités"])
+
+_UNIVERSITE_FIELDS = ("code", "libelle", "sigle", "is_active")
 
 
 @router.get(
@@ -87,8 +92,9 @@ def get_universite(
 )
 def create_universite(
     universite_in: UniversiteCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """
     Crée une nouvelle université.
@@ -103,7 +109,17 @@ def create_universite(
             detail=f"Le code '{universite_in.code}' existe déjà",
         )
     try:
-        return universite_repository.create(db, universite_in)
+        universite = universite_repository.create(db, universite_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="universite",
+            entity_id=universite.id,
+            new_values=fields_snapshot(universite, *_UNIVERSITE_FIELDS),
+        )
+        return universite
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -121,8 +137,9 @@ def create_universite(
 def update_universite(
     universite_id: int,
     universite_in: UniversiteUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """
     Met à jour une université.
@@ -143,8 +160,20 @@ def update_universite(
                 detail=f"Le code '{universite_in.code}' existe déjà",
             )
     
+    old_snapshot = fields_snapshot(universite, *_UNIVERSITE_FIELDS)
     try:
-        return universite_repository.update(db, universite_id, universite_in)
+        updated = universite_repository.update(db, universite_id, universite_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="universite",
+            entity_id=universite_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_UNIVERSITE_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -161,19 +190,36 @@ def update_universite(
 )
 def delete_universite(
     universite_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """
     Supprime une université (suppression logique).
     
     - **universite_id**: ID de l'université à supprimer
     """
+    universite = universite_repository.get_by_id(db, universite_id)
+    if not universite:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Université non trouvée",
+        )
+    old_snapshot = fields_snapshot(universite, *_UNIVERSITE_FIELDS)
     if not universite_repository.delete(db, universite_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Université non trouvée",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="universite",
+        entity_id=universite_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Université supprimée avec succès"}
 
 

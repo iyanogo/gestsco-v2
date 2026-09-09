@@ -1,17 +1,22 @@
 """
 Endpoints API pour la gestion des cycles.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import cycle_repository, niveau_repository
 from app.schemas.cycle import Cycle, CycleCreate, CycleUpdate
 from app.schemas.niveau import Niveau
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/cycles", tags=["Cycles"])
+
+_CYCLE_FIELDS = ("code", "libelle", "sigle")
 
 
 @router.get(
@@ -79,8 +84,9 @@ def get_cycle(
 )
 def create_cycle(
     cycle_in: CycleCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """Crée un nouveau cycle."""
     if cycle_repository.code_exists(db, cycle_in.code):
@@ -89,7 +95,17 @@ def create_cycle(
             detail=f"Le code '{cycle_in.code}' existe déjà",
         )
     try:
-        return cycle_repository.create(db, cycle_in)
+        cycle = cycle_repository.create(db, cycle_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="cycle",
+            entity_id=cycle.id,
+            new_values=fields_snapshot(cycle, *_CYCLE_FIELDS),
+        )
+        return cycle
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -107,8 +123,9 @@ def create_cycle(
 def update_cycle(
     cycle_id: int,
     cycle_in: CycleUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Met à jour un cycle."""
     cycle = cycle_repository.get_by_id(db, cycle_id)
@@ -125,8 +142,20 @@ def update_cycle(
                 detail=f"Le code '{cycle_in.code}' existe déjà",
             )
     
+    old_snapshot = fields_snapshot(cycle, *_CYCLE_FIELDS)
     try:
-        return cycle_repository.update(db, cycle_id, cycle_in)
+        updated = cycle_repository.update(db, cycle_id, cycle_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="cycle",
+            entity_id=cycle_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_CYCLE_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -143,15 +172,32 @@ def update_cycle(
 )
 def delete_cycle(
     cycle_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """Supprime un cycle (suppression logique)."""
+    cycle = cycle_repository.get_by_id(db, cycle_id)
+    if not cycle:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cycle non trouvé",
+        )
+    old_snapshot = fields_snapshot(cycle, *_CYCLE_FIELDS)
     if not cycle_repository.delete(db, cycle_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cycle non trouvé",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="cycle",
+        entity_id=cycle_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Cycle supprimé avec succès"}
 
 

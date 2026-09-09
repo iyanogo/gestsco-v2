@@ -3,12 +3,12 @@ Service pour la gestion des paiements
 """
 
 from datetime import datetime
-from io import BytesIO
 from sqlalchemy.orm import Session
 
 from app.models.paiement_facture import PaiementFacture
 from app.models.facture import Facture
 from app.models.etudiant import Etudiant
+from app.utils.pdf_generator import build_reportlab_pdf, create_title_style
 
 
 def generer_numero_paiement(db: Session) -> str:
@@ -68,11 +68,10 @@ def generer_recu_pdf(db: Session, paiement_id: int) -> bytes:
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
     
-    # Récupérer le paiement avec ses relations
     paiement = db.query(PaiementFacture).filter(PaiementFacture.id == paiement_id).first()
     if not paiement:
         return b""
@@ -80,18 +79,8 @@ def generer_recu_pdf(db: Session, paiement_id: int) -> bytes:
     facture = db.query(Facture).filter(Facture.id == paiement.facture_id).first()
     etudiant = db.query(Etudiant).filter(Etudiant.id == paiement.etudiant_id).first()
     
-    # Créer le PDF
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm)
-    
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'Title',
-        parent=styles['Heading1'],
-        fontSize=18,
-        alignment=1,
-        spaceAfter=20
-    )
+    title_style = create_title_style()
     
     elements = []
     
@@ -163,13 +152,7 @@ def generer_recu_pdf(db: Session, paiement_id: int) -> bytes:
         styles['Normal']
     ))
     
-    # Générer le PDF
-    doc.build(elements)
-    
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-    
-    return pdf_bytes
+    return build_reportlab_pdf(elements, pagesize=A4, top_margin=1*cm, bottom_margin=1*cm)
 
 
 def traiter_validation_paiement(db: Session, paiement_id: int, user_id: int) -> dict:

@@ -8,7 +8,7 @@ import {
   StatistiquesPresence 
 } from '../types/emploiTemps';
 
-const BASE_URL = '/presences';
+const BASE_URL = '/api/v1/presences';
 
 export interface GetPresencesParams {
   skip?: number;

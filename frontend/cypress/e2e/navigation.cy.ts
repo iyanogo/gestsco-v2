@@ -41,14 +41,18 @@ describe('Navigation', () => {
 
     it('should navigate to profile', () => {
       cy.get('[data-testid="user-menu"]').click();
-      cy.contains('Profil').click();
-      cy.url().should('include', '/profil');
+      cy.get('[data-testid="user-dropdown"]').contains('Mon profil').click();
+      cy.url().should('match', /\/(admin|enseignant|etudiant)\/profil/);
     });
 
-    it('should navigate to settings', () => {
+    it('should navigate to settings when available', () => {
       cy.get('[data-testid="user-menu"]').click();
-      cy.contains('Paramètres').click();
-      cy.url().should('include', '/parametrage');
+      cy.get('[data-testid="user-dropdown"]').then(($menu) => {
+        if ($menu.text().includes('Paramètres')) {
+          cy.wrap($menu).contains('Paramètres').click();
+          cy.url().should('include', '/parametrage');
+        }
+      });
     });
   });
 

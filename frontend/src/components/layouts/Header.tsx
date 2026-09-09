@@ -1,6 +1,7 @@
 import React from 'react';
-import { Dropdown, Form, Badge } from 'react-bootstrap';
+import { Dropdown, Form, Badge, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import type { HeaderNotification } from '../../types/notification';
 
 export interface HeaderProps {
   user?: {
@@ -8,19 +9,29 @@ export interface HeaderProps {
     role: string;
     avatar?: string;
   };
-  notifications?: number;
+  notificationItems?: HeaderNotification[];
+  notificationsLoading?: boolean;
+  notificationsViewAllHref?: string | null;
   onToggleSidebar?: () => void;
   onLogout?: () => void;
   showSearch?: boolean;
+  profilePath?: string;
+  settingsPath?: string | null;
 }
 
 const Header: React.FC<HeaderProps> = ({
   user,
-  notifications = 0,
+  notificationItems = [],
+  notificationsLoading = false,
+  notificationsViewAllHref = null,
   onToggleSidebar,
   onLogout,
-  showSearch = true
+  showSearch = true,
+  profilePath = '/profile',
+  settingsPath = null,
 }) => {
+  const unreadCount = notificationItems.filter((item) => item.unread !== false).length;
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -60,50 +71,73 @@ const Header: React.FC<HeaderProps> = ({
               variant="light"
               className="btn-icon position-relative"
               id="notifications-dropdown"
+              aria-label="Notifications"
             >
               <i className="bi bi-bell"></i>
-              {notifications > 0 && (
+              {unreadCount > 0 && (
                 <Badge
                   bg="danger"
                   pill
                   className="notification-badge"
                 >
-                  {notifications > 99 ? '99+' : notifications}
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </Badge>
               )}
             </Dropdown.Toggle>
 
-            <Dropdown.Menu className="dropdown-menu-lg p-0" style={{ width: '320px' }}>
+            <Dropdown.Menu className="dropdown-menu-lg p-0 notifications-panel" style={{ width: '320px' }}>
               <div className="p-3 border-bottom">
                 <h6 className="mb-0">Notifications</h6>
               </div>
               <div className="notifications-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {notifications === 0 ? (
+                {notificationsLoading ? (
+                  <div className="text-center py-4 text-muted">
+                    <Spinner animation="border" size="sm" className="mb-2" />
+                    <small className="d-block">Chargement…</small>
+                  </div>
+                ) : notificationItems.length === 0 ? (
                   <div className="text-center py-4 text-muted">
                     <i className="bi bi-bell-slash fs-2 d-block mb-2"></i>
                     <small>Aucune notification</small>
                   </div>
                 ) : (
                   <div className="p-2">
-                    <div className="notification-item unread">
-                      <div className="notification-icon icon-info">
-                        <i className="bi bi-info-circle"></i>
-                      </div>
-                      <div className="notification-content">
-                        <div className="notification-title">Nouvelle inscription</div>
-                        <div className="notification-text">Un nouvel étudiant s'est inscrit</div>
-                        <div className="notification-time">Il y a 5 min</div>
-                      </div>
-                      <div className="notification-dot"></div>
-                    </div>
+                    {notificationItems.map((item) => (
+                      <Link
+                        key={item.id}
+                        to={item.href}
+                        className={`dropdown-item notification-item d-flex align-items-start ${
+                          item.unread !== false ? 'unread' : ''
+                        }`}
+                      >
+                        <div className={`notification-icon icon-${item.variant || 'info'}`}>
+                          <i className={`bi ${
+                            item.variant === 'danger'
+                              ? 'bi-exclamation-circle'
+                              : item.variant === 'warning'
+                                ? 'bi-exclamation-triangle'
+                                : item.variant === 'success'
+                                  ? 'bi-check-circle'
+                                  : 'bi-info-circle'
+                          }`}></i>
+                        </div>
+                        <div className="notification-content">
+                          <div className="notification-title">{item.title}</div>
+                          <div className="notification-text">{item.message}</div>
+                        </div>
+                        {item.unread !== false && <div className="notification-dot"></div>}
+                      </Link>
+                    ))}
                   </div>
                 )}
               </div>
-              <div className="p-2 border-top text-center">
-                <Link to="/notifications" className="text-primary small">
-                  Voir toutes les notifications
-                </Link>
-              </div>
+              {notificationsViewAllHref && notificationItems.length > 0 && (
+                <div className="p-2 border-top text-center">
+                  <Link to={notificationsViewAllHref} className="text-primary small">
+                    Voir le détail
+                  </Link>
+                </div>
+              )}
             </Dropdown.Menu>
           </Dropdown>
 
@@ -112,6 +146,7 @@ const Header: React.FC<HeaderProps> = ({
               variant="link"
               className="header-user p-0 text-decoration-none"
               id="user-dropdown"
+              data-testid="user-menu"
             >
               {user?.avatar ? (
                 <img
@@ -131,15 +166,17 @@ const Header: React.FC<HeaderProps> = ({
               <i className="bi bi-chevron-down ms-2 text-muted d-none d-sm-inline"></i>
             </Dropdown.Toggle>
 
-            <Dropdown.Menu>
-              <Dropdown.Item as={Link} to="/profile">
+            <Dropdown.Menu data-testid="user-dropdown">
+              <Dropdown.Item as={Link} to={profilePath}>
                 <i className="bi bi-person me-2"></i>
                 Mon profil
               </Dropdown.Item>
-              <Dropdown.Item as={Link} to="/settings">
-                <i className="bi bi-gear me-2"></i>
-                Paramètres
-              </Dropdown.Item>
+              {settingsPath && (
+                <Dropdown.Item as={Link} to={settingsPath}>
+                  <i className="bi bi-gear me-2"></i>
+                  Paramètres
+                </Dropdown.Item>
+              )}
               <Dropdown.Divider />
               <Dropdown.Item onClick={onLogout} className="text-danger">
                 <i className="bi bi-box-arrow-right me-2"></i>

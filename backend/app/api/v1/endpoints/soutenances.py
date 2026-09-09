@@ -6,18 +6,31 @@ CRUD complet avec programmation, validation et génération de PV.
 from typing import Optional, List
 from datetime import date, datetime
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.api.deps import get_db, get_current_active_user
+from app.api.deps import get_db
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.models.soutenance import Soutenance
 from app.models.stage import Stage
 from app.services.stage_service import StageService, StageServiceError
 from app.repositories.soutenance_repository import SoutenanceRepository
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter()
+
+_SOUTENANCE_FIELDS = (
+    "stage_id",
+    "date_soutenance",
+    "lieu",
+    "statut",
+    "salle_id",
+    "duree_minutes",
+    "note_finale",
+)
 
 
 # Schémas Pydantic
@@ -88,7 +101,7 @@ async def list_soutenances(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("soutenances", "read")),
 ):
     """
     Récupère la liste des soutenances avec filtres optionnels.
@@ -114,8 +127,9 @@ async def list_soutenances(
 @router.post("/", response_model=SoutenanceResponse, summary="Programmer une soutenance")
 async def create_soutenance(
     soutenance_data: SoutenanceCreate,
+    http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("soutenances", "create")),
 ):
     """
     Programme une nouvelle soutenance pour un stage.
@@ -138,6 +152,15 @@ async def create_soutenance(
             examinateur_id=soutenance_data.examinateur_id,
             duree_minutes=soutenance_data.duree_minutes
         )
+        audit_and_commit(
+            db,
+            request=http_request,
+            user=current_user,
+            action="create",
+            entity_type="soutenance",
+            entity_id=soutenance.id,
+            new_values=fields_snapshot(soutenance, *_SOUTENANCE_FIELDS),
+        )
         return soutenance
     except StageServiceError as e:
         raise HTTPException(
@@ -146,11 +169,73 @@ async def create_soutenance(
         )
 
 
+@router.get("/jury/{user_id}", response_model=List[SoutenanceResponse], summary="Soutenances d'un membre du jury")
+async def get_soutenances_jury(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("soutenances", "read")),
+):
+    """
+    Récupère toutes les soutenances où l'utilisateur est membre du jury.
+    """
+    service = StageService(db)
+    soutenances = service.get_soutenances_jury(user_id)
+    return soutenances
+
+
+@router.get("/calendrier", summary="Calendrier des soutenances")
+async def get_calendrier_soutenances(
+    date_debut: date = Query(..., description="Date de début"),
+    date_fin: date = Query(..., description="Date de fin"),
+    niveau_id: Optional[int] = Query(None, description="Filtrer par niveau"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("soutenances", "read")),
+):
+    """
+    Récupère le calendrier des soutenances pour une période.
+    """
+    service = StageService(db)
+    soutenances = service.get_calendrier_soutenances(date_debut, date_fin, niveau_id)
+
+    events = []
+    for s in soutenances:
+        stage = s.stage
+        events.append({
+            "id": s.id,
+            "title": f"Soutenance - {stage.etudiant_id}",
+            "start": s.date_soutenance.isoformat(),
+            "end": (s.date_soutenance.replace(
+                minute=s.date_soutenance.minute + s.duree_minutes
+            )).isoformat(),
+            "lieu": s.lieu,
+            "salle_id": s.salle_id,
+            "statut": s.statut,
+            "stage_id": stage.id,
+            "theme": stage.theme[:100] if stage.theme else None
+        })
+
+    return events
+
+
+@router.get("/a-venir", response_model=List[SoutenanceResponse], summary="Soutenances à venir")
+async def get_soutenances_a_venir(
+    jours: int = Query(7, ge=1, le=30, description="Nombre de jours"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("soutenances", "read")),
+):
+    """
+    Récupère les soutenances programmées dans les X prochains jours.
+    """
+    repo = SoutenanceRepository(db)
+    soutenances = repo.get_a_venir(jours)
+    return soutenances
+
+
 @router.get("/{soutenance_id}", response_model=SoutenanceResponse, summary="Détails d'une soutenance")
 async def get_soutenance(
     soutenance_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("soutenances", "read")),
 ):
     """
     Récupère les détails d'une soutenance.
@@ -168,8 +253,9 @@ async def get_soutenance(
 async def update_soutenance(
     soutenance_id: int,
     soutenance_data: SoutenanceUpdate,
+    http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("soutenances", "update")),
 ):
     """
     Met à jour une soutenance programmée.
@@ -187,20 +273,32 @@ async def update_soutenance(
             detail="Seules les soutenances programmées peuvent être modifiées"
         )
     
+    old_snapshot = fields_snapshot(soutenance, *_SOUTENANCE_FIELDS)
     update_data = soutenance_data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(soutenance, field, value)
     
     db.commit()
     db.refresh(soutenance)
+    audit_and_commit(
+        db,
+        request=http_request,
+        user=current_user,
+        action="update",
+        entity_type="soutenance",
+        entity_id=soutenance_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(soutenance, *_SOUTENANCE_FIELDS),
+    )
     return soutenance
 
 
 @router.delete("/{soutenance_id}", summary="Annuler une soutenance")
 async def delete_soutenance(
     soutenance_id: int,
+    http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("soutenances", "delete")),
 ):
     """
     Annule une soutenance programmée.
@@ -218,9 +316,18 @@ async def delete_soutenance(
             detail="Seules les soutenances programmées peuvent être annulées"
         )
     
+    old_snapshot = fields_snapshot(soutenance, *_SOUTENANCE_FIELDS)
     db.delete(soutenance)
     db.commit()
-    
+    audit_and_commit(
+        db,
+        request=http_request,
+        user=current_user,
+        action="delete",
+        entity_type="soutenance",
+        entity_id=soutenance_id,
+        old_values=old_snapshot,
+    )
     return {"message": f"Soutenance {soutenance_id} annulée"}
 
 
@@ -228,8 +335,9 @@ async def delete_soutenance(
 async def valider_soutenance(
     soutenance_id: int,
     request: ValiderSoutenanceRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("soutenances", "validate")),
 ):
     """
     Valide une soutenance avec les notes du jury.
@@ -240,6 +348,8 @@ async def valider_soutenance(
     - Met à jour le stage
     """
     service = StageService(db)
+    existing = db.query(Soutenance).filter(Soutenance.id == soutenance_id).first()
+    old_snapshot = fields_snapshot(existing, *_SOUTENANCE_FIELDS) if existing else {}
     
     try:
         soutenance = service.valider_soutenance(
@@ -249,7 +359,16 @@ async def valider_soutenance(
             note_jury=request.note_jury,
             observations_jury=request.observations_jury
         )
-        
+        audit_and_commit(
+            db,
+            request=http_request,
+            user=current_user,
+            action="validate",
+            entity_type="soutenance",
+            entity_id=soutenance_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(soutenance, *_SOUTENANCE_FIELDS),
+        )
         return {
             "message": "Soutenance validée avec succès",
             "soutenance": {
@@ -270,8 +389,9 @@ async def valider_soutenance(
 @router.post("/{soutenance_id}/generer-pv", summary="Générer le PV")
 async def generer_pv_soutenance(
     soutenance_id: int,
+    http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("soutenances", "validate")),
 ):
     """
     Génère le procès-verbal de soutenance.
@@ -280,7 +400,17 @@ async def generer_pv_soutenance(
     
     try:
         pv_url = service.generer_pv_soutenance(soutenance_id)
-        
+        soutenance = db.query(Soutenance).filter(Soutenance.id == soutenance_id).first()
+        audit_and_commit(
+            db,
+            request=http_request,
+            user=current_user,
+            action="publish",
+            entity_type="soutenance",
+            entity_id=soutenance_id,
+            new_values={"proces_verbal_url": pv_url, "statut": getattr(soutenance, "statut", None)},
+            details="generer_pv",
+        )
         return {
             "message": "PV généré avec succès",
             "pv_url": pv_url
@@ -290,66 +420,3 @@ async def generer_pv_soutenance(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-
-
-@router.get("/jury/{user_id}", response_model=List[SoutenanceResponse], summary="Soutenances d'un membre du jury")
-async def get_soutenances_jury(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Récupère toutes les soutenances où l'utilisateur est membre du jury.
-    """
-    service = StageService(db)
-    soutenances = service.get_soutenances_jury(user_id)
-    return soutenances
-
-
-@router.get("/calendrier", summary="Calendrier des soutenances")
-async def get_calendrier_soutenances(
-    date_debut: date = Query(..., description="Date de début"),
-    date_fin: date = Query(..., description="Date de fin"),
-    niveau_id: Optional[int] = Query(None, description="Filtrer par niveau"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Récupère le calendrier des soutenances pour une période.
-    """
-    service = StageService(db)
-    soutenances = service.get_calendrier_soutenances(date_debut, date_fin, niveau_id)
-    
-    # Formater pour le calendrier
-    events = []
-    for s in soutenances:
-        stage = s.stage
-        events.append({
-            "id": s.id,
-            "title": f"Soutenance - {stage.etudiant_id}",
-            "start": s.date_soutenance.isoformat(),
-            "end": (s.date_soutenance.replace(
-                minute=s.date_soutenance.minute + s.duree_minutes
-            )).isoformat(),
-            "lieu": s.lieu,
-            "salle_id": s.salle_id,
-            "statut": s.statut,
-            "stage_id": stage.id,
-            "theme": stage.theme[:100] if stage.theme else None
-        })
-    
-    return events
-
-
-@router.get("/a-venir", response_model=List[SoutenanceResponse], summary="Soutenances à venir")
-async def get_soutenances_a_venir(
-    jours: int = Query(7, ge=1, le=30, description="Nombre de jours"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Récupère les soutenances programmées dans les X prochains jours.
-    """
-    repo = SoutenanceRepository(db)
-    soutenances = repo.get_a_venir(jours)
-    return soutenances

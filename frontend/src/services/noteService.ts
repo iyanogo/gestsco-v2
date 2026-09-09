@@ -11,7 +11,7 @@ import {
   NoteBulkCreate,
 } from '../types/evaluation';
 
-const BASE_URL = '/notes';
+const BASE_URL = '/api/v1/notes';
 
 export interface NoteParams {
   skip?: number;

@@ -3,11 +3,11 @@ Endpoints API pour la gestion des frais de scolarité
 """
 
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_active_user
-from app.core.permissions import get_current_scolarite_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories.frais_scolarite_repository import frais_scolarite_repository
 from app.schemas.frais_scolarite import (
@@ -15,8 +15,19 @@ from app.schemas.frais_scolarite import (
     FraisScolariteCreate,
     FraisScolariteUpdate,
 )
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter()
+
+_FRAIS_SCOLARITE_FIELDS = (
+    "type_frais_id",
+    "niveau_id",
+    "filiere_id",
+    "annee_academique_id",
+    "montant",
+    "is_active",
+)
 
 
 @router.get("/", response_model=list[FraisScolarite])
@@ -94,23 +105,35 @@ def get_frais(
 @router.post("/", response_model=FraisScolarite, status_code=status.HTTP_201_CREATED)
 def create_frais(
     frais_in: FraisScolariteCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("finances", "create")),
 ):
     """
     Crée un nouveau frais de scolarité.
     
     Réservé au personnel de scolarité.
     """
-    return frais_scolarite_repository.create(db, frais_in)
+    frais = frais_scolarite_repository.create(db, frais_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="frais_scolarite",
+        entity_id=frais.id,
+        new_values=fields_snapshot(frais, *_FRAIS_SCOLARITE_FIELDS),
+    )
+    return frais
 
 
 @router.put("/{frais_id}", response_model=FraisScolarite)
 def update_frais(
     frais_id: int,
     frais_in: FraisScolariteUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("finances", "update")),
 ):
     """
     Met à jour un frais de scolarité.
@@ -124,14 +147,27 @@ def update_frais(
             detail="Frais de scolarité non trouvé"
         )
     
-    return frais_scolarite_repository.update(db, frais_id, frais_in)
+    old_snapshot = fields_snapshot(frais, *_FRAIS_SCOLARITE_FIELDS)
+    updated = frais_scolarite_repository.update(db, frais_id, frais_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="frais_scolarite",
+        entity_id=frais_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_FRAIS_SCOLARITE_FIELDS),
+    )
+    return updated
 
 
 @router.delete("/{frais_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_frais(
     frais_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("finances", "delete")),
 ):
     """
     Supprime un frais de scolarité (désactivation logique).
@@ -145,5 +181,15 @@ def delete_frais(
             detail="Frais de scolarité non trouvé"
         )
     
+    old_snapshot = fields_snapshot(frais, *_FRAIS_SCOLARITE_FIELDS)
     frais_scolarite_repository.delete(db, frais_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="frais_scolarite",
+        entity_id=frais_id,
+        old_values=old_snapshot,
+    )
     return None

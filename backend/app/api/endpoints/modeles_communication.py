@@ -1,9 +1,12 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 from app.schemas.modele_email import (
     ModeleEmailCreate,
     ModeleEmailUpdate,
@@ -23,6 +26,9 @@ from app.repositories.modele_sms_repository import modele_sms_repository
 from app.services.template_service import render_email, render_sms
 
 router = APIRouter()
+
+_EMAIL_FIELDS = ("code", "libelle", "objet", "type_destinataire", "is_active")
+_SMS_FIELDS = ("code", "libelle", "type_destinataire", "is_active")
 
 
 # ========== MODÈLES EMAIL ==========
@@ -59,50 +65,87 @@ def get_modele_email_by_id(
 @router.post("/emails", response_model=ModeleEmailResponse, status_code=status.HTTP_201_CREATED)
 def create_modele_email(
     modele_in: ModeleEmailCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "create")),
 ):
-    """Crée un nouveau modèle d'email"""
+    """Crée un nouveau modèle d'email (superuser uniquement)."""
     existing = modele_email_repository.get_by_code(db, modele_in.code)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Un modèle avec le code '{modele_in.code}' existe déjà"
         )
-    
-    return modele_email_repository.create(db, modele_in)
+
+    modele = modele_email_repository.create(db, modele_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="modele_email",
+        entity_id=modele.id,
+        new_values=fields_snapshot(modele, *_EMAIL_FIELDS),
+    )
+    return modele
 
 
 @router.put("/emails/{modele_id}", response_model=ModeleEmailResponse)
 def update_modele_email(
     modele_id: int,
     modele_in: ModeleEmailUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "update")),
 ):
-    """Met à jour un modèle d'email"""
+    """Met à jour un modèle d'email (superuser uniquement)."""
     modele = modele_email_repository.get_by_id(db, modele_id)
     if not modele:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Modèle d'email non trouvé"
         )
-    
-    return modele_email_repository.update(db, modele, modele_in)
+
+    old_snapshot = fields_snapshot(modele, *_EMAIL_FIELDS)
+    updated = modele_email_repository.update(db, modele, modele_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="modele_email",
+        entity_id=modele_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_EMAIL_FIELDS),
+    )
+    return updated
 
 
 @router.delete("/emails/{modele_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_modele_email(
     modele_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "delete")),
 ):
-    """Supprime un modèle d'email"""
-    if not modele_email_repository.delete(db, modele_id):
+    """Supprime un modèle d'email (superuser uniquement)."""
+    modele = modele_email_repository.get_by_id(db, modele_id)
+    if not modele:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Modèle d'email non trouvé"
         )
+    old_snapshot = fields_snapshot(modele, *_EMAIL_FIELDS)
+    modele_email_repository.delete(db, modele_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="modele_email",
+        entity_id=modele_id,
+        old_values=old_snapshot,
+    )
 
 
 @router.post("/emails/{modele_id}/preview", response_model=ModeleEmailPreviewResponse)
@@ -174,50 +217,87 @@ def get_modele_sms_by_id(
 @router.post("/sms", response_model=ModeleSMSResponse, status_code=status.HTTP_201_CREATED)
 def create_modele_sms(
     modele_in: ModeleSMSCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "create")),
 ):
-    """Crée un nouveau modèle de SMS"""
+    """Crée un nouveau modèle de SMS (superuser uniquement)."""
     existing = modele_sms_repository.get_by_code(db, modele_in.code)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Un modèle avec le code '{modele_in.code}' existe déjà"
         )
-    
-    return modele_sms_repository.create(db, modele_in)
+
+    modele = modele_sms_repository.create(db, modele_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="modele_sms",
+        entity_id=modele.id,
+        new_values=fields_snapshot(modele, *_SMS_FIELDS),
+    )
+    return modele
 
 
 @router.put("/sms/{modele_id}", response_model=ModeleSMSResponse)
 def update_modele_sms(
     modele_id: int,
     modele_in: ModeleSMSUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "update")),
 ):
-    """Met à jour un modèle de SMS"""
+    """Met à jour un modèle de SMS (superuser uniquement)."""
     modele = modele_sms_repository.get_by_id(db, modele_id)
     if not modele:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Modèle de SMS non trouvé"
         )
-    
-    return modele_sms_repository.update(db, modele, modele_in)
+
+    old_snapshot = fields_snapshot(modele, *_SMS_FIELDS)
+    updated = modele_sms_repository.update(db, modele, modele_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="modele_sms",
+        entity_id=modele_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_SMS_FIELDS),
+    )
+    return updated
 
 
 @router.delete("/sms/{modele_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_modele_sms(
     modele_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "delete")),
 ):
-    """Supprime un modèle de SMS"""
-    if not modele_sms_repository.delete(db, modele_id):
+    """Supprime un modèle de SMS (superuser uniquement)."""
+    modele = modele_sms_repository.get_by_id(db, modele_id)
+    if not modele:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Modèle de SMS non trouvé"
         )
+    old_snapshot = fields_snapshot(modele, *_SMS_FIELDS)
+    modele_sms_repository.delete(db, modele_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="modele_sms",
+        entity_id=modele_id,
+        old_values=old_snapshot,
+    )
 
 
 @router.post("/sms/{modele_id}/preview", response_model=ModeleSMSPreviewResponse)

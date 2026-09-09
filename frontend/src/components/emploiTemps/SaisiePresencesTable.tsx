@@ -133,12 +133,24 @@ const SaisiePresencesTable: React.FC<SaisiePresencesTableProps> = ({ seanceId, o
   };
 
   const hasModifications = presences.some((p) => p.modified);
+  const hasUnsavedRows = presences.some((p) => !p.id);
+  const canSave = hasModifications || hasUnsavedRows;
 
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
       </Box>
+    );
+  }
+
+  if (presences.length === 0) {
+    return (
+      <Paper sx={{ p: 4, textAlign: 'center' }}>
+        <Typography color="text.secondary">
+          Aucun étudiant inscrit à la matière de cette séance.
+        </Typography>
+      </Paper>
     );
   }
 
@@ -265,7 +277,7 @@ const SaisiePresencesTable: React.FC<SaisiePresencesTableProps> = ({ seanceId, o
             variant="contained"
             startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
             onClick={handleSave}
-            disabled={saving || !hasModifications}
+            disabled={saving || !canSave}
           >
             {saving ? 'Enregistrement...' : 'Enregistrer'}
           </Button>

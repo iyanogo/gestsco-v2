@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -23,6 +23,14 @@ class Matiere(Base):
     va: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     vcvh: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     vp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    credit: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, default=3,
+        comment="Crédits ECTS de la matière (défaut 3 en migration)",
+    )
+    obligatoire: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True,
+        comment="Matière obligatoire dans le semestre",
+    )
     module_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("module.id"), nullable=True
     )

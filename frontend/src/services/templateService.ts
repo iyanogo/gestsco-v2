@@ -56,6 +56,17 @@ export const templateService = {
     return response.data;
   },
 
+  exportPDF: async (id: number, variables: Record<string, any> = {}): Promise<Blob> => {
+    const response = await api.post(`${BASE_URL}/${id}/pdf`, { variables }, { responseType: 'blob' });
+    return response.data;
+  },
+
+  exportPDFByCode: async (code: string, variables: Record<string, any> = {}, etablissementId?: number): Promise<Blob> => {
+    const params = etablissementId ? { etablissement_id: etablissementId } : {};
+    const response = await api.post(`${BASE_URL}/code/${code}/pdf`, { variables }, { params, responseType: 'blob' });
+    return response.data;
+  },
+
   renderByCode: async (code: string, variables: Record<string, any>, etablissementId?: number): Promise<{ html: string }> => {
     const params = etablissementId ? { etablissement_id: etablissementId } : {};
     const response = await api.post(`${BASE_URL}/code/${code}/render`, { variables }, { params });

@@ -41,8 +41,8 @@ class Deliberation(Base):
     date_deliberation: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     type_deliberation: Mapped[str] = mapped_column(
         String(50), nullable=False
-    )  # semestre, annuelle
-    semestre: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # si type=semestre
+    )  # semestrielle, annuelle (legacy: semestre)
+    semestre: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # si type=semestrielle
     president_jury: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
     )

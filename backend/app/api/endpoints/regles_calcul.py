@@ -1,9 +1,12 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 from app.schemas.regles_calcul import (
     RegleCalculCreate,
     RegleCalculUpdate,
@@ -21,6 +24,8 @@ from app.services.calcul_service import (
 )
 
 router = APIRouter()
+
+_REGLE_FIELDS = ("code", "libelle", "type_regle", "ordre_execution", "is_active")
 
 
 @router.get("/", response_model=List[RegleCalculResponse])
@@ -68,50 +73,87 @@ def get_regle_by_id(
 @router.post("/", response_model=RegleCalculResponse, status_code=status.HTTP_201_CREATED)
 def create_regle(
     regle_in: RegleCalculCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "create")),
 ):
-    """Crée une nouvelle règle de calcul"""
+    """Crée une nouvelle règle de calcul (superuser uniquement)."""
     existing = regle_calcul_repository.get_by_code(db, regle_in.code)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Une règle avec le code '{regle_in.code}' existe déjà"
         )
-    
-    return regle_calcul_repository.create(db, regle_in)
+
+    regle = regle_calcul_repository.create(db, regle_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="regle_calcul",
+        entity_id=regle.id,
+        new_values=fields_snapshot(regle, *_REGLE_FIELDS),
+    )
+    return regle
 
 
 @router.put("/{regle_id}", response_model=RegleCalculResponse)
 def update_regle(
     regle_id: int,
     regle_in: RegleCalculUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "update")),
 ):
-    """Met à jour une règle de calcul"""
+    """Met à jour une règle de calcul (superuser uniquement)."""
     regle = regle_calcul_repository.get_by_id(db, regle_id)
     if not regle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Règle non trouvée"
         )
-    
-    return regle_calcul_repository.update(db, regle, regle_in)
+
+    old_snapshot = fields_snapshot(regle, *_REGLE_FIELDS)
+    updated = regle_calcul_repository.update(db, regle, regle_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="regle_calcul",
+        entity_id=regle_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_REGLE_FIELDS),
+    )
+    return updated
 
 
 @router.delete("/{regle_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_regle(
     regle_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "delete")),
 ):
-    """Supprime une règle de calcul"""
-    if not regle_calcul_repository.delete(db, regle_id):
+    """Supprime une règle de calcul (superuser uniquement)."""
+    regle = regle_calcul_repository.get_by_id(db, regle_id)
+    if not regle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Règle non trouvée"
         )
+    old_snapshot = fields_snapshot(regle, *_REGLE_FIELDS)
+    regle_calcul_repository.delete(db, regle_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="regle_calcul",
+        entity_id=regle_id,
+        old_values=old_snapshot,
+    )
 
 
 @router.post("/{regle_id}/tester", response_model=RegleCalculTestResponse)
@@ -119,9 +161,9 @@ def tester_regle(
     regle_id: int,
     test_data: RegleCalculTestRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "read")),
 ):
-    """Teste une règle avec des données"""
+    """Teste une règle avec des données (superuser uniquement)."""
     result = regle_calcul_repository.executer_regle(db, regle_id, test_data.donnees)
     if result is None:
         raise HTTPException(

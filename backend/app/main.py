@@ -1,11 +1,44 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.api.v1.api import api_router
+from app.middleware.request_logging import RequestLoggingMiddleware
+from app.services.administration_maintenance_service import AdministrationMaintenanceService
+
+
+async def _maintenance_loop() -> None:
+    interval = max(settings.ADMIN_MAINTENANCE_INTERVAL_HOURS, 1) * 3600
+    while True:
+        await asyncio.sleep(interval)
+        db = SessionLocal()
+        try:
+            AdministrationMaintenanceService.run_all(db)
+        except Exception:  # noqa: BLE001 - ne pas arrêter le serveur
+            pass
+        finally:
+            db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = None
+    if settings.ADMIN_MAINTENANCE_ENABLED:
+        task = asyncio.create_task(_maintenance_loop())
+    yield
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
 
 app = FastAPI(
     title="GestSco API",
@@ -14,6 +47,7 @@ app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -23,6 +57,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")
 

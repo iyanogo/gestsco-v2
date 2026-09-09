@@ -3,10 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import MainLayout from './MainLayout';
 import { teacherMenuItems } from '../../config/menuConfig';
 import { useAuth } from '../../hooks/useAuth';
+import { useHeaderNotifications } from '../../hooks/useHeaderNotifications';
+import { getPortalProfilePath } from '../../utils/portalPaths';
 
 const TeacherLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const { items: notificationItems, loading: notificationsLoading, viewAllHref } =
+    useHeaderNotifications('teacher');
 
   const handleLogout = () => {
     logout();
@@ -22,8 +27,11 @@ const TeacherLayout: React.FC = () => {
         role: 'Enseignant',
         avatar: undefined
       }}
-      notifications={2}
+      notificationItems={notificationItems}
+      notificationsLoading={notificationsLoading}
+      notificationsViewAllHref={viewAllHref}
       onLogout={handleLogout}
+      profilePath={getPortalProfilePath('teacher')}
     />
   );
 };

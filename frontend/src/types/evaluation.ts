@@ -48,7 +48,14 @@ export interface UpdateSessionExamen {
 
 // ============ Examens ============
 
-export type TypeEvaluation = 'cc' | 'tp' | 'examen' | 'examen_final' | 'projet';
+export type TypeEvaluation =
+  | 'cc'
+  | 'tp'
+  | 'examen'
+  | 'examen_final'
+  | 'projet'
+  | 'controle_continu'
+  | 'examen_partiel';
 export type StatutExamen = 'planifie' | 'en_cours' | 'termine' | 'notes_saisies' | 'valide';
 
 export interface Examen {
@@ -491,6 +498,8 @@ export const TYPE_EVALUATION_LABELS: Record<TypeEvaluation, string> = {
   examen: 'Examen',
   examen_final: 'Examen Final',
   projet: 'Projet',
+  controle_continu: 'Contrôle continu',
+  examen_partiel: 'Examen partiel',
 };
 
 export const STATUT_EXAMEN_LABELS: Record<StatutExamen, string> = {

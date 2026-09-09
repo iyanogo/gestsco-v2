@@ -12,13 +12,11 @@ from app.models.resultat_semestre import ResultatSemestre
 from app.models.resultat_matiere import ResultatMatiere
 from app.models.inscription import Inscription
 from app.models.inscription_matiere import InscriptionMatiere
-from app.models.matiere import Matiere
+from app.models.session_examen import SessionExamen
 from app.repositories.base_repository import BaseRepository
-from app.utils.calcul_notes import (
-    calculer_moyenne_ponderee,
-    calculer_mention,
-    determiner_decision_semestre,
-)
+from app.utils.calcul_notes import calculer_moyenne_ponderee, calculer_mention
+from app.utils.configuration_deliberation_resolver import resolve_config_snapshot
+from app.utils.deliberation_rules import determiner_decision_semestre
 
 
 class ResultatSemestreRepository(BaseRepository[ResultatSemestre, None, None]):
@@ -123,9 +121,9 @@ class ResultatSemestreRepository(BaseRepository[ResultatSemestre, None, None]):
             raise ValueError(f"Inscription {inscription_id} non trouvée")
         
         # Récupérer les inscriptions matières du semestre
-        inscriptions_matieres = db.query(InscriptionMatiere).join(Matiere).filter(
+        inscriptions_matieres = db.query(InscriptionMatiere).filter(
             InscriptionMatiere.inscription_id == inscription_id,
-            Matiere.semestre == semestre
+            InscriptionMatiere.semestre == semestre,
         ).all()
         
         # Récupérer les résultats matières correspondants
@@ -140,7 +138,7 @@ class ResultatSemestreRepository(BaseRepository[ResultatSemestre, None, None]):
         
         # Calculer les totaux
         total_credits_inscrits = sum(
-            im.matiere.credit for im in inscriptions_matieres if im.matiere
+            (im.matiere.credit or 3) for im in inscriptions_matieres if im.matiere
         )
         total_credits_obtenus = sum(
             rm.credit_obtenu for rm in resultats_matieres if rm.credit_obtenu
@@ -161,16 +159,23 @@ class ResultatSemestreRepository(BaseRepository[ResultatSemestre, None, None]):
             if rm.moyenne_matiere is not None:
                 im = next((i for i in inscriptions_matieres if i.id == rm.inscription_matiere_id), None)
                 if im and im.matiere:
-                    notes_ponderees.append((rm.moyenne_matiere, im.matiere.credit))
+                    notes_ponderees.append((rm.moyenne_matiere, im.matiere.credit or 3))
         
         moyenne_generale = calculer_moyenne_ponderee(notes_ponderees)
-        
+
+        session = db.query(SessionExamen).filter(SessionExamen.id == session_id).first()
+        annee_id = session.annee_academique_id if session else None
+        config = resolve_config_snapshot(db, annee_id, inscription.niveau_id)
+        matieres_dette = nombre_matieres - nombre_matieres_validees
+
         # Déterminer mention et décision
-        mention = calculer_mention(moyenne_generale)
+        mention = calculer_mention(moyenne_generale, config.moyenne_validation)
         decision = determiner_decision_semestre(
             moyenne_generale,
             total_credits_obtenus,
-            total_credits_inscrits
+            total_credits_inscrits,
+            matieres_dette,
+            config,
         )
         
         # Chercher un résultat existant ou en créer un nouveau

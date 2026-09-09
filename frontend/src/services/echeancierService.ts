@@ -1,7 +1,7 @@
 import api from './api';
 import { Echeancier, CreateEcheancier, UpdateEcheancier } from '../types/finance';
 
-const BASE_URL = '/echeanciers';
+const BASE_URL = '/api/v1/echeanciers';
 
 export const echeancierService = {
   getEcheanciers: async (params?: {

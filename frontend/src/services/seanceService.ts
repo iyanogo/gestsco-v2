@@ -8,7 +8,7 @@ import {
   JourSemaine 
 } from '../types/emploiTemps';
 
-const BASE_URL = '/seances';
+const BASE_URL = '/api/v1/seances';
 
 export interface GetSeancesParams {
   skip?: number;
@@ -47,6 +47,14 @@ export const seanceService = {
     date_fin?: string
   ): Promise<Seance[]> => {
     const response = await api.get<Seance[]>(`${BASE_URL}/enseignant/${enseignant_id}`, {
+      params: { date_debut, date_fin },
+    });
+    return response.data;
+  },
+
+  /** Portail enseignant - séances du compte connecté (sans ID en URL). */
+  getMesSeances: async (date_debut?: string, date_fin?: string): Promise<Seance[]> => {
+    const response = await api.get<Seance[]>(`${BASE_URL}/mes-seances`, {
       params: { date_debut, date_fin },
     });
     return response.data;

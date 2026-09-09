@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.template_document import TemplateDocument
 from app.schemas.template_document import TemplateDocumentCreate, TemplateDocumentUpdate
+from app.utils.pdf_formatters import sanitize_html_for_pdf
 
 
 class TemplateDocumentRepository:
@@ -86,7 +87,7 @@ class TemplateDocumentRepository:
             pied = re.sub(r'\{\{\s*(\w+)\s*\}\}', replace_var, template.pied_page_html)
             html = f"{html}\n{pied}"
         
-        return html
+        return sanitize_html_for_pdf(html)
     
     @staticmethod
     def create(db: Session, template_in: TemplateDocumentCreate) -> TemplateDocument:

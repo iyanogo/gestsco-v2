@@ -1,16 +1,21 @@
 """
 Endpoints API pour la gestion des années scolaires.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import annee_repository
 from app.schemas.annee_scolaire import AnneeResponse, AnneeCreate, AnneeUpdate
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/annees-scolaires", tags=["Années Scolaires"])
+
+_ANNEE_SCOLAIRE_FIELDS = ("code", "libelle", "statut", "etat")
 
 
 @router.get(
@@ -79,12 +84,23 @@ def get_annee_scolaire(
 )
 def create_annee_scolaire(
     annee_in: AnneeCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """Crée une nouvelle année scolaire."""
     try:
-        return annee_repository.create(db, annee_in)
+        annee = annee_repository.create(db, annee_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="annee_scolaire",
+            entity_id=annee.id,
+            new_values=fields_snapshot(annee, *_ANNEE_SCOLAIRE_FIELDS),
+        )
+        return annee
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -102,8 +118,9 @@ def create_annee_scolaire(
 def update_annee_scolaire(
     annee_id: int,
     annee_in: AnneeUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Met à jour une année scolaire."""
     annee = annee_repository.get_by_id(db, annee_id)
@@ -112,8 +129,20 @@ def update_annee_scolaire(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Année scolaire non trouvée",
         )
+    old_snapshot = fields_snapshot(annee, *_ANNEE_SCOLAIRE_FIELDS)
     try:
-        return annee_repository.update(db, annee_id, annee_in)
+        updated = annee_repository.update(db, annee_id, annee_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="annee_scolaire",
+            entity_id=annee_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_ANNEE_SCOLAIRE_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -130,16 +159,30 @@ def update_annee_scolaire(
 )
 def activate_annee_scolaire(
     annee_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Active une année scolaire et désactive les autres."""
-    annee = annee_repository.set_active(db, annee_id)
-    if not annee:
+    existing = annee_repository.get_by_id(db, annee_id)
+    if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Année scolaire non trouvée",
         )
+    old_snapshot = fields_snapshot(existing, *_ANNEE_SCOLAIRE_FIELDS)
+    annee = annee_repository.set_active(db, annee_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="annee_scolaire",
+        entity_id=annee_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(annee, *_ANNEE_SCOLAIRE_FIELDS),
+        details="activate",
+    )
     return annee
 
 
@@ -151,13 +194,30 @@ def activate_annee_scolaire(
 )
 def delete_annee_scolaire(
     annee_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """Supprime une année scolaire."""
+    annee = annee_repository.get_by_id(db, annee_id)
+    if not annee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Année scolaire non trouvée",
+        )
+    old_snapshot = fields_snapshot(annee, *_ANNEE_SCOLAIRE_FIELDS)
     if not annee_repository.delete(db, annee_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Année scolaire non trouvée",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="annee_scolaire",
+        entity_id=annee_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Année scolaire supprimée avec succès"}

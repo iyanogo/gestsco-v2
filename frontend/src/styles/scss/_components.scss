@@ -14,10 +14,10 @@
   background: $sidebar-bg;
   color: $sidebar-color;
   z-index: $zindex-sidebar;
+  display: flex;
+  flex-direction: column;
   @include transition(width, 0.3s);
-  @include custom-scrollbar(4px, transparent, rgba(255, 255, 255, 0.2));
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 
   &.collapsed {
     width: $sidebar-collapsed-width;
@@ -43,6 +43,7 @@
     height: 64px;
     padding: 1rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
 
     .sidebar-brand-icon {
       width: 40px;
@@ -73,14 +74,25 @@
   }
 
   .sidebar-nav {
+    flex: 1;
+    min-height: 0;
+    flex-wrap: nowrap;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 0.5rem 0;
+    @include custom-scrollbar(4px, transparent, rgba(255, 255, 255, 0.2));
 
     .nav-item {
       margin: 0.125rem 0;
+      width: 100%;
+      flex-shrink: 0;
     }
 
     .nav-link {
       @include sidebar-item;
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
 
       .nav-icon {
         font-size: 1.125rem;
@@ -91,6 +103,10 @@
 
       .nav-link-text {
         flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .nav-badge {
@@ -127,10 +143,7 @@
   }
 
   .sidebar-footer {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    flex-shrink: 0;
     padding: 1rem;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     background: darken($sidebar-bg, 3%);

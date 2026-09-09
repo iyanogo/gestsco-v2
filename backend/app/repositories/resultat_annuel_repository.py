@@ -10,12 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.models.resultat_annuel import ResultatAnnuel
 from app.models.resultat_semestre import ResultatSemestre
+from app.models.resultat_matiere import ResultatMatiere
 from app.models.inscription import Inscription
+from app.models.session_examen import SessionExamen
 from app.repositories.base_repository import BaseRepository
-from app.utils.calcul_notes import (
-    calculer_mention,
-    determiner_decision_annuelle,
-)
+from app.utils.calcul_notes import calculer_mention
+from app.utils.configuration_deliberation_resolver import resolve_config_snapshot
+from app.utils.deliberation_rules import determiner_decision_annuelle
 
 
 class ResultatAnnuelRepository(BaseRepository[ResultatAnnuel, None, None]):
@@ -125,11 +126,30 @@ class ResultatAnnuelRepository(BaseRepository[ResultatAnnuel, None, None]):
         )
         
         # Déterminer mention et décision
-        mention = calculer_mention(moyenne_annuelle)
-        decision, passage = determiner_decision_annuelle(
+        annee_id = getattr(inscription, "annee_academique_id", None)
+        config = resolve_config_snapshot(db, annee_id, inscription.niveau_id)
+        matieres_dette = (
+            db.query(ResultatMatiere)
+            .join(SessionExamen, ResultatMatiere.session_id == SessionExamen.id)
+            .filter(
+                ResultatMatiere.etudiant_id == inscription.etudiant_id,
+                SessionExamen.annee_academique_id == annee_id,
+                ResultatMatiere.statut != "valide",
+            )
+            .count()
+            if annee_id
+            else 0
+        )
+
+        mention = calculer_mention(moyenne_annuelle, config.moyenne_validation)
+        decision, passage, _compensation = determiner_decision_annuelle(
+            moyenne_s1,
+            moyenne_s2,
             moyenne_annuelle,
             total_credits_obtenus,
-            total_credits_inscrits
+            total_credits_inscrits,
+            matieres_dette,
+            config,
         )
         
         # Chercher un résultat existant ou en créer un nouveau

@@ -14,7 +14,7 @@ import {
   DossierCandidatureDetails,
 } from '../types/inscription';
 
-const BASE_URL = '/public/inscription';
+const BASE_URL = '/api/v1/public/inscription';
 
 export const inscriptionPubliqueService = {
   /**

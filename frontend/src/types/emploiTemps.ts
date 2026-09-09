@@ -476,6 +476,22 @@ export const getStatutReservationColor = (statut: string): string => {
   return found?.color || 'default';
 };
 
+export const getStatutEmploiTempsLabel = (statut: string): string => {
+  const found = STATUTS_EMPLOI_TEMPS.find(s => s.value === statut);
+  return found?.label || statut;
+};
+
+export const getStatutEmploiTempsColor = (
+  statut: string
+): 'default' | 'info' | 'success' | 'secondary' => {
+  const found = STATUTS_EMPLOI_TEMPS.find(s => s.value === statut);
+  const color = found?.color;
+  if (color === 'info' || color === 'success' || color === 'secondary') {
+    return color;
+  }
+  return 'default';
+};
+
 export const getJourSemaineLabel = (jour: number): string => {
   const found = JOURS_SEMAINE.find(j => j.value === jour);
   return found?.label || '';

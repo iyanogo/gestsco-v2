@@ -11,6 +11,17 @@ class MatiereRepository(BaseRepository[Matiere, MatiereCreate, MatiereUpdate]):
     def __init__(self):
         super().__init__(Matiere)
 
+    def create(self, db: Session, obj_in: MatiereCreate) -> Matiere:
+        """Crée une matière ; credit=3 par défaut si non renseigné."""
+        data = obj_in.model_dump()
+        if data.get("credit") is None:
+            data["credit"] = 3
+        db_obj = Matiere(**data)
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+
     def get_by_module(
         self,
         db: Session,
@@ -93,7 +104,7 @@ class MatiereRepository(BaseRepository[Matiere, MatiereCreate, MatiereUpdate]):
             Total des crédits
         """
         matieres = self.get_by_module(db, module_id)
-        return sum(m.credits or 0 for m in matieres)
+        return sum(m.credit or 0 for m in matieres)
 
 
 matiere_repository = MatiereRepository()

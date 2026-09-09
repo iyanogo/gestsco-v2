@@ -1,157 +1,294 @@
-import React, { useState, useEffect } from 'react';
-import { Row, Col, Button, Badge, Modal, Form } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Row, Col, Button, Badge, Modal, Form, Alert } from 'react-bootstrap';
 import { PageHeader } from '../../../components/layouts';
 import { DataCard, DataTable, SearchFilter, ConfirmModal, Column } from '../../../components/ui';
+import { salleService } from '../../../services/salleService';
+import { batimentService } from '../../../services/batimentService';
+import type { Salle, CreateSalle, UpdateSalle, Batiment } from '../../../types/emploiTemps';
+import { TYPES_SALLE, EQUIPEMENTS_SALLE } from '../../../types/emploiTemps';
 
-interface Salle {
-  id: number;
+type SalleRow = Salle & { batiment_libelle?: string };
+
+type SalleFormState = {
   code: string;
-  nom: string;
-  type: 'cours' | 'labo' | 'amphi' | 'reunion';
-  capacite: number;
-  batiment: string;
-  equipements: string[];
+  libelle: string;
+  batiment_id: string;
+  type_salle: string;
+  etage: string;
+  capacite: string;
+  superficie: string;
+  description: string;
+  is_accessible_pmr: boolean;
   is_active: boolean;
+  equipements: string[];
+};
+
+const defaultForm: SalleFormState = {
+  code: '',
+  libelle: '',
+  batiment_id: '',
+  type_salle: 'cours',
+  etage: '',
+  capacite: '30',
+  superficie: '',
+  description: '',
+  is_accessible_pmr: false,
+  is_active: true,
+  equipements: [],
+};
+
+function parseEquipements(raw?: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch {
+    /* fallback comma-separated */
+  }
+  return raw.split(',').map((e) => e.trim()).filter(Boolean);
+}
+
+function serializeEquipements(list: string[]): string {
+  return list.join(', ');
 }
 
 const SallesListPage: React.FC = () => {
-  const [salles, setSalles] = useState<Salle[]>([]);
+  const [salles, setSalles] = useState<SalleRow[]>([]);
+  const [batiments, setBatiments] = useState<Batiment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Salle | null>(null);
-  const [formData, setFormData] = useState({
-    code: '',
-    nom: '',
-    type: 'cours',
-    capacite: 30,
-    batiment: '',
-    equipements: [] as string[]
-  });
+  const [selectedItem, setSelectedItem] = useState<SalleRow | null>(null);
+  const [formData, setFormData] = useState<SalleFormState>(defaultForm);
+  const [saving, setSaving] = useState(false);
+
+  const batimentMap = Object.fromEntries(batiments.map((b) => [b.id, b.libelle]));
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [sallesData, batimentsData] = await Promise.all([
+        salleService.getSalles(),
+        batimentService.getBatiments(),
+      ]);
+      setBatiments(batimentsData);
+      const bMap = Object.fromEntries(batimentsData.map((b) => [b.id, b.libelle]));
+      setSalles(
+        sallesData.map((s) => ({
+          ...s,
+          batiment_libelle: bMap[s.batiment_id],
+        }))
+      );
+    } catch (err) {
+      console.error('Erreur chargement salles:', err);
+      setError('Impossible de charger les salles.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
-
-  const loadData = async () => {
-    setLoading(true);
-    setTimeout(() => {
-      setSalles([
-        { id: 1, code: 'S101', nom: 'Salle 101', type: 'cours', capacite: 40, batiment: 'Bâtiment A', equipements: ['Vidéoprojecteur', 'Tableau blanc'], is_active: true },
-        { id: 2, code: 'S102', nom: 'Salle 102', type: 'cours', capacite: 35, batiment: 'Bâtiment A', equipements: ['Vidéoprojecteur'], is_active: true },
-        { id: 3, code: 'S205', nom: 'Salle 205', type: 'cours', capacite: 50, batiment: 'Bâtiment B', equipements: ['Vidéoprojecteur', 'Climatisation'], is_active: true },
-        { id: 4, code: 'LAB1', nom: 'Labo Info 1', type: 'labo', capacite: 25, batiment: 'Bâtiment C', equipements: ['Ordinateurs', 'Vidéoprojecteur', 'Climatisation'], is_active: true },
-        { id: 5, code: 'LAB2', nom: 'Labo Info 2', type: 'labo', capacite: 25, batiment: 'Bâtiment C', equipements: ['Ordinateurs', 'Vidéoprojecteur'], is_active: true },
-        { id: 6, code: 'LABR', nom: 'Labo Réseau', type: 'labo', capacite: 20, batiment: 'Bâtiment C', equipements: ['Équipements réseau', 'Ordinateurs'], is_active: true },
-        { id: 7, code: 'AMPA', nom: 'Amphi A', type: 'amphi', capacite: 200, batiment: 'Bâtiment Principal', equipements: ['Vidéoprojecteur', 'Sonorisation', 'Climatisation'], is_active: true },
-        { id: 8, code: 'AMPB', nom: 'Amphi B', type: 'amphi', capacite: 150, batiment: 'Bâtiment Principal', equipements: ['Vidéoprojecteur', 'Sonorisation'], is_active: true },
-        { id: 9, code: 'REU1', nom: 'Salle de réunion 1', type: 'reunion', capacite: 15, batiment: 'Administration', equipements: ['Vidéoprojecteur', 'Visioconférence'], is_active: true },
-      ]);
-      setLoading(false);
-    }, 500);
-  };
+  }, [loadData]);
 
   const getTypeBadge = (type: string) => {
-    switch (type) {
-      case 'cours':
-        return <Badge bg="primary">Salle de cours</Badge>;
-      case 'labo':
-        return <Badge bg="success">Laboratoire</Badge>;
-      case 'amphi':
-        return <Badge bg="info">Amphithéâtre</Badge>;
-      case 'reunion':
-        return <Badge bg="warning">Réunion</Badge>;
-      default:
-        return <Badge bg="secondary">{type}</Badge>;
-    }
+    const label = TYPES_SALLE.find((t) => t.value === type)?.label ?? type;
+    const variant =
+      type === 'amphi' ? 'info' : type === 'labo' || type === 'salle_info' ? 'success' : type === 'salle_reunion' ? 'warning' : 'primary';
+    return <Badge bg={variant}>{label}</Badge>;
   };
 
-  const columns: Column<Salle>[] = [
-    { key: 'code', header: 'Code', width: '100px', render: (item) => (
-      <code className="text-primary fw-medium">{item.code}</code>
-    )},
-    { key: 'nom', header: 'Nom' },
-    { key: 'type', header: 'Type', render: (item) => getTypeBadge(item.type) },
-    { key: 'capacite', header: 'Capacité', render: (item) => (
-      <span><i className="bi bi-people me-1"></i>{item.capacite} places</span>
-    )},
-    { key: 'batiment', header: 'Bâtiment' },
-    { key: 'equipements', header: 'Équipements', render: (item) => (
-      <div className="d-flex flex-wrap gap-1">
-        {item.equipements.slice(0, 2).map((eq, i) => (
-          <Badge key={i} bg="light" text="dark" className="fw-normal">{eq}</Badge>
-        ))}
-        {item.equipements.length > 2 && (
-          <Badge bg="secondary">+{item.equipements.length - 2}</Badge>
-        )}
-      </div>
-    )},
-    { key: 'is_active', header: 'Statut', render: (item) => (
-      <Badge bg={item.is_active ? 'success' : 'secondary'}>
-        {item.is_active ? 'Disponible' : 'Indisponible'}
-      </Badge>
-    )},
-    { key: 'actions', header: 'Actions', width: '120px', render: (item) => (
-      <div className="d-flex gap-1">
-        <Button size="sm" variant="outline-primary" onClick={(e) => { e.stopPropagation(); handleEdit(item); }}>
-          <i className="bi bi-pencil"></i>
-        </Button>
-        <Button size="sm" variant="outline-danger" onClick={(e) => { e.stopPropagation(); handleDeleteClick(item); }}>
-          <i className="bi bi-trash"></i>
-        </Button>
-      </div>
-    )}
+  const getEquipementLabel = (value: string) =>
+    EQUIPEMENTS_SALLE.find((e) => e.value === value)?.label ?? value;
+
+  const columns: Column<SalleRow>[] = [
+    {
+      key: 'code',
+      header: 'Code',
+      width: '100px',
+      render: (item) => <code className="text-primary fw-medium">{item.code}</code>,
+    },
+    { key: 'libelle', header: 'Libellé' },
+    { key: 'type_salle', header: 'Type', render: (item) => getTypeBadge(item.type_salle) },
+    {
+      key: 'capacite',
+      header: 'Capacité',
+      render: (item) => (
+        <span>
+          <i className="bi bi-people me-1"></i>
+          {item.capacite} places
+        </span>
+      ),
+    },
+    {
+      key: 'batiment_id',
+      header: 'Bâtiment',
+      render: (item) => item.batiment_libelle ?? batimentMap[item.batiment_id] ?? `#${item.batiment_id}`,
+    },
+    {
+      key: 'equipements',
+      header: 'Équipements',
+      render: (item) => {
+        const eq = parseEquipements(item.equipements);
+        return (
+          <div className="d-flex flex-wrap gap-1">
+            {eq.slice(0, 2).map((e) => (
+              <Badge key={e} bg="light" text="dark" className="fw-normal">
+                {getEquipementLabel(e)}
+              </Badge>
+            ))}
+            {eq.length > 2 && <Badge bg="secondary">+{eq.length - 2}</Badge>}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'is_active',
+      header: 'Statut',
+      render: (item) => (
+        <Badge bg={item.is_active ? 'success' : 'secondary'}>
+          {item.is_active ? 'Disponible' : 'Indisponible'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      width: '120px',
+      render: (item) => (
+        <div className="d-flex gap-1">
+          <Button
+            size="sm"
+            variant="outline-primary"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(item);
+            }}
+          >
+            <i className="bi bi-pencil"></i>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline-danger"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick(item);
+            }}
+          >
+            <i className="bi bi-trash"></i>
+          </Button>
+        </div>
+      ),
+    },
   ];
 
-  const filteredData = salles.filter(item => {
-    const matchSearch = 
-      item.nom.toLowerCase().includes(searchValue.toLowerCase()) ||
-      item.code.toLowerCase().includes(searchValue.toLowerCase());
-    const matchType = !filterValues.type || item.type === filterValues.type;
+  const filteredData = salles.filter((item) => {
+    const q = searchValue.toLowerCase();
+    const matchSearch =
+      item.libelle.toLowerCase().includes(q) || item.code.toLowerCase().includes(q);
+    const matchType = !filterValues.type_salle || item.type_salle === filterValues.type_salle;
     return matchSearch && matchType;
   });
 
   const handleAdd = () => {
     setSelectedItem(null);
-    setFormData({ code: '', nom: '', type: 'cours', capacite: 30, batiment: '', equipements: [] });
-    setShowModal(true);
-  };
-
-  const handleEdit = (item: Salle) => {
-    setSelectedItem(item);
     setFormData({
-      code: item.code,
-      nom: item.nom,
-      type: item.type,
-      capacite: item.capacite,
-      batiment: item.batiment,
-      equipements: item.equipements
+      ...defaultForm,
+      batiment_id: batiments[0]?.id?.toString() ?? '',
     });
     setShowModal(true);
   };
 
-  const handleDeleteClick = (item: Salle) => {
+  const handleEdit = (item: SalleRow) => {
+    setSelectedItem(item);
+    setFormData({
+      code: item.code,
+      libelle: item.libelle,
+      batiment_id: String(item.batiment_id),
+      type_salle: item.type_salle,
+      etage: item.etage != null ? String(item.etage) : '',
+      capacite: String(item.capacite),
+      superficie: item.superficie != null ? String(item.superficie) : '',
+      description: item.description ?? '',
+      is_accessible_pmr: item.is_accessible_pmr,
+      is_active: item.is_active,
+      equipements: parseEquipements(item.equipements),
+    });
+    setShowModal(true);
+  };
+
+  const handleDeleteClick = (item: SalleRow) => {
     setSelectedItem(item);
     setShowDeleteModal(true);
   };
 
-  const handleSave = () => {
-    console.log('Saving:', formData);
-    setShowModal(false);
-    loadData();
+  const handleSave = async () => {
+    if (!formData.code.trim() || !formData.libelle.trim() || !formData.batiment_id) {
+      setError('Code, libellé et bâtiment sont obligatoires.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const base = {
+        code: formData.code.trim(),
+        libelle: formData.libelle.trim(),
+        batiment_id: Number(formData.batiment_id),
+        type_salle: formData.type_salle,
+        etage: formData.etage ? Number(formData.etage) : undefined,
+        capacite: Number(formData.capacite) || 30,
+        superficie: formData.superficie ? Number(formData.superficie) : undefined,
+        equipements: serializeEquipements(formData.equipements) || undefined,
+        description: formData.description.trim() || undefined,
+        is_accessible_pmr: formData.is_accessible_pmr,
+      };
+      if (selectedItem) {
+        const update: UpdateSalle = { ...base, is_active: formData.is_active };
+        await salleService.updateSalle(selectedItem.id, update);
+      } else {
+        await salleService.createSalle(base as CreateSalle);
+      }
+      setShowModal(false);
+      await loadData();
+    } catch (err: unknown) {
+      console.error('Erreur enregistrement salle:', err);
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Erreur lors de l\'enregistrement.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = () => {
-    console.log('Deleting:', selectedItem?.id);
-    setShowDeleteModal(false);
-    loadData();
+  const handleDelete = async () => {
+    if (!selectedItem) return;
+    setSaving(true);
+    try {
+      await salleService.deleteSalle(selectedItem.id);
+      setShowDeleteModal(false);
+      await loadData();
+    } catch (err) {
+      console.error('Erreur suppression salle:', err);
+      setError('Impossible de supprimer cette salle.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Statistiques
+  const toggleEquipement = (value: string, checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      equipements: checked
+        ? [...prev.equipements, value]
+        : prev.equipements.filter((e) => e !== value),
+    }));
+  };
+
   const totalCapacite = salles.reduce((sum, s) => sum + s.capacite, 0);
-  const nbLabos = salles.filter(s => s.type === 'labo').length;
+  const nbLabos = salles.filter((s) => s.type_salle === 'labo' || s.type_salle === 'salle_info').length;
 
   return (
     <div className="fade-in">
@@ -159,18 +296,29 @@ const SallesListPage: React.FC = () => {
         title="Salles"
         subtitle="Gestion des salles et locaux"
         breadcrumbs={[
-          { label: 'Emploi du temps', path: '/admin/emploi-temps' },
-          { label: 'Salles' }
+          { label: 'Emploi du temps', path: '/admin/emploi-temps/planning' },
+          { label: 'Salles' },
         ]}
         actions={
-          <Button variant="primary" onClick={handleAdd}>
+          <Button variant="primary" onClick={handleAdd} disabled={batiments.length === 0}>
             <i className="bi bi-plus-lg me-2"></i>
             Nouvelle salle
           </Button>
         }
       />
 
-      {/* Statistiques rapides */}
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-3">
+          {error}
+        </Alert>
+      )}
+
+      {batiments.length === 0 && !loading && (
+        <Alert variant="warning" className="mb-3">
+          Créez d&apos;abord un bâtiment avant d&apos;ajouter des salles.
+        </Alert>
+      )}
+
       <Row className="g-3 mb-4">
         <Col sm={6} md={3}>
           <div className="bg-white rounded p-3 border d-flex align-items-center gap-3">
@@ -190,7 +338,7 @@ const SallesListPage: React.FC = () => {
             </div>
             <div>
               <div className="fs-4 fw-bold">{nbLabos}</div>
-              <small className="text-muted">Laboratoires</small>
+              <small className="text-muted">Labos / info</small>
             </div>
           </div>
         </Col>
@@ -211,7 +359,7 @@ const SallesListPage: React.FC = () => {
               <i className="bi bi-check-circle fs-4 text-warning"></i>
             </div>
             <div>
-              <div className="fs-4 fw-bold">{salles.filter(s => s.is_active).length}</div>
+              <div className="fs-4 fw-bold">{salles.filter((s) => s.is_active).length}</div>
               <small className="text-muted">Disponibles</small>
             </div>
           </div>
@@ -233,36 +381,25 @@ const SallesListPage: React.FC = () => {
           searchPlaceholder="Rechercher une salle..."
           filters={[
             {
-              key: 'type',
+              key: 'type_salle',
               label: 'Tous les types',
               type: 'select',
-              options: [
-                { value: 'cours', label: 'Salle de cours' },
-                { value: 'labo', label: 'Laboratoire' },
-                { value: 'amphi', label: 'Amphithéâtre' },
-                { value: 'reunion', label: 'Salle de réunion' }
-              ]
-            }
+              options: TYPES_SALLE.map((t) => ({ value: t.value, label: t.label })),
+            },
           ]}
           filterValues={filterValues}
           onFilterChange={(key, value) => setFilterValues({ ...filterValues, [key]: value })}
-          onReset={() => { setSearchValue(''); setFilterValues({}); }}
+          onReset={() => {
+            setSearchValue('');
+            setFilterValues({});
+          }}
         />
-
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          loading={loading}
-          emptyMessage="Aucune salle trouvée"
-        />
+        <DataTable columns={columns} data={filteredData} loading={loading} emptyMessage="Aucune salle trouvée" />
       </DataCard>
 
-      {/* Modal Ajout/Modification */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>
-            {selectedItem ? 'Modifier la salle' : 'Nouvelle salle'}
-          </Modal.Title>
+          <Modal.Title>{selectedItem ? 'Modifier la salle' : 'Nouvelle salle'}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Row className="g-3">
@@ -278,46 +415,75 @@ const SallesListPage: React.FC = () => {
             </Col>
             <Col md={8}>
               <Form.Group>
-                <Form.Label>Nom *</Form.Label>
+                <Form.Label>Libellé *</Form.Label>
                 <Form.Control
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  placeholder="Nom de la salle"
+                  value={formData.libelle}
+                  onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
                 />
               </Form.Group>
             </Col>
-            <Col md={4}>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>Bâtiment *</Form.Label>
+                <Form.Select
+                  value={formData.batiment_id}
+                  onChange={(e) => setFormData({ ...formData, batiment_id: e.target.value })}
+                >
+                  <option value="">Sélectionner…</option>
+                  {batiments.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.libelle}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={6}>
               <Form.Group>
                 <Form.Label>Type *</Form.Label>
                 <Form.Select
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  value={formData.type_salle}
+                  onChange={(e) => setFormData({ ...formData, type_salle: e.target.value })}
                 >
-                  <option value="cours">Salle de cours</option>
-                  <option value="labo">Laboratoire</option>
-                  <option value="amphi">Amphithéâtre</option>
-                  <option value="reunion">Salle de réunion</option>
+                  {TYPES_SALLE.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
                 </Form.Select>
               </Form.Group>
             </Col>
             <Col md={4}>
               <Form.Group>
-                <Form.Label>Capacité</Form.Label>
+                <Form.Label>Capacité *</Form.Label>
                 <Form.Control
                   type="number"
                   min={1}
                   value={formData.capacite}
-                  onChange={(e) => setFormData({ ...formData, capacite: parseInt(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, capacite: e.target.value })}
                 />
               </Form.Group>
             </Col>
             <Col md={4}>
               <Form.Group>
-                <Form.Label>Bâtiment</Form.Label>
+                <Form.Label>Étage</Form.Label>
                 <Form.Control
-                  value={formData.batiment}
-                  onChange={(e) => setFormData({ ...formData, batiment: e.target.value })}
-                  placeholder="Bâtiment"
+                  type="number"
+                  min={0}
+                  value={formData.etage}
+                  onChange={(e) => setFormData({ ...formData, etage: e.target.value })}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Superficie (m²)</Form.Label>
+                <Form.Control
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={formData.superficie}
+                  onChange={(e) => setFormData({ ...formData, superficie: e.target.value })}
                 />
               </Form.Group>
             </Col>
@@ -325,33 +491,44 @@ const SallesListPage: React.FC = () => {
               <Form.Group>
                 <Form.Label>Équipements</Form.Label>
                 <div className="d-flex flex-wrap gap-2">
-                  {['Vidéoprojecteur', 'Tableau blanc', 'Climatisation', 'Ordinateurs', 'Sonorisation', 'Visioconférence'].map(eq => (
+                  {EQUIPEMENTS_SALLE.map((eq) => (
                     <Form.Check
-                      key={eq}
+                      key={eq.value}
                       type="checkbox"
-                      label={eq}
-                      checked={formData.equipements.includes(eq)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData({ ...formData, equipements: [...formData.equipements, eq] });
-                        } else {
-                          setFormData({ ...formData, equipements: formData.equipements.filter(e => e !== eq) });
-                        }
-                      }}
+                      label={eq.label}
+                      checked={formData.equipements.includes(eq.value)}
+                      onChange={(e) => toggleEquipement(eq.value, e.target.checked)}
                     />
                   ))}
                 </div>
               </Form.Group>
             </Col>
+            <Col md={12}>
+              <Form.Check
+                type="checkbox"
+                label="Accessible PMR"
+                checked={formData.is_accessible_pmr}
+                onChange={(e) => setFormData({ ...formData, is_accessible_pmr: e.target.checked })}
+              />
+            </Col>
+            {selectedItem && (
+              <Col md={12}>
+                <Form.Check
+                  type="switch"
+                  label="Salle active"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                />
+              </Col>
+            )}
           </Row>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>
+          <Button variant="secondary" onClick={() => setShowModal(false)} disabled={saving}>
             Annuler
           </Button>
-          <Button variant="primary" onClick={handleSave}>
-            <i className="bi bi-check-lg me-2"></i>
-            {selectedItem ? 'Modifier' : 'Créer'}
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Enregistrement…' : selectedItem ? 'Modifier' : 'Créer'}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -361,7 +538,7 @@ const SallesListPage: React.FC = () => {
         onHide={() => setShowDeleteModal(false)}
         onConfirm={handleDelete}
         title="Supprimer la salle"
-        message={`Êtes-vous sûr de vouloir supprimer la salle "${selectedItem?.nom}" ?`}
+        message={`Supprimer la salle « ${selectedItem?.libelle} » ?`}
         confirmLabel="Supprimer"
         variant="danger"
       />

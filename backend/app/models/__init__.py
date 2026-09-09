@@ -60,6 +60,10 @@ from app.models.periode_comptable import PeriodeComptable
 from app.models.stage import Stage
 from app.models.soutenance import Soutenance
 from app.models.configuration_deliberation import ConfigurationDeliberation
+from app.models.system_log import SystemLog
+from app.models.audit_event import AuditEvent
+from app.models.backup_run import BackupRun
+from app.models.rbac_permission import RbacPermissionGrant
 
 __all__ = [
     "Base",
@@ -124,4 +128,8 @@ __all__ = [
     "Stage",
     "Soutenance",
     "ConfigurationDeliberation",
+    "SystemLog",
+    "AuditEvent",
+    "BackupRun",
+    "RbacPermissionGrant",
 ]

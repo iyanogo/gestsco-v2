@@ -4,19 +4,23 @@ Endpoints API pour la gestion des inscriptions aux matières
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_active_user
-from app.core.permissions import get_current_scolarite_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import inscription_matiere_repository, inscription_repository
 from app.schemas.inscription_matiere import (
     InscriptionMatiere,
     InscriptionMatiereCreate,
 )
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/inscriptions-matieres", tags=["Inscriptions Matières"])
+
+_INSCRIPTION_MATIERE_FIELDS = ("inscription_id", "matiere_id", "semestre", "is_active")
 
 
 @router.get("/inscription/{inscription_id}", response_model=list[InscriptionMatiere], summary="Matières d'une inscription")
@@ -48,8 +52,9 @@ async def get_matieres_by_inscription(
 @router.post("/", response_model=InscriptionMatiere, status_code=status.HTTP_201_CREATED, summary="Inscrire à une matière")
 async def create_inscription_matiere(
     inscription_matiere_in: InscriptionMatiereCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("inscriptions", "create")),
 ):
     """
     Inscrit un étudiant à une matière.
@@ -75,14 +80,25 @@ async def create_inscription_matiere(
             detail="L'étudiant est déjà inscrit à cette matière"
         )
     
-    return inscription_matiere_repository.create(db, inscription_matiere_in)
+    created = inscription_matiere_repository.create(db, inscription_matiere_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="inscription_matiere",
+        entity_id=created.id,
+        new_values=fields_snapshot(created, *_INSCRIPTION_MATIERE_FIELDS),
+    )
+    return created
 
 
 @router.post("/bulk", summary="Inscrire à plusieurs matières")
 async def bulk_create_inscription_matieres(
     bulk_data: dict,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("inscriptions", "create")),
 ):
     """
     Inscrit un étudiant à plusieurs matières en une fois.
@@ -131,6 +147,21 @@ async def bulk_create_inscription_matieres(
         matiere_ids,
         semestre
     )
+    if created:
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="inscription_matiere",
+            entity_id=created[0].id,
+            new_values={
+                "inscription_id": inscription_id,
+                "semestre": semestre,
+                "created_count": len(created),
+            },
+            details="bulk",
+        )
     
     return {
         "message": f"{len(created)} inscription(s) matière(s) créée(s)",
@@ -142,18 +173,35 @@ async def bulk_create_inscription_matieres(
 @router.delete("/{inscription_matiere_id}", summary="Supprimer une inscription matière")
 async def delete_inscription_matiere(
     inscription_matiere_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("inscriptions", "delete")),
 ):
     """
     Supprime une inscription matière.
     
     Requiert les droits admin ou scolarité.
     """
+    existing = inscription_matiere_repository.get_by_id(db, inscription_matiere_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inscription matière non trouvée"
+        )
+    old_snapshot = fields_snapshot(existing, *_INSCRIPTION_MATIERE_FIELDS)
     success = inscription_matiere_repository.delete(db, inscription_matiere_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Inscription matière non trouvée"
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="inscription_matiere",
+        entity_id=inscription_matiere_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Inscription matière supprimée avec succès"}

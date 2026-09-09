@@ -5,19 +5,24 @@ Endpoints API pour la gestion des pièces jointes
 import os
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_active_user, get_current_scolarite_user
+from app.api.deps import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories.piece_jointe_repository import piece_jointe_repository
 from app.schemas.piece_jointe import (
     PieceJointe,
     PieceJointeCreate,
 )
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/pieces-jointes", tags=["Pièces Jointes"])
+
+_PIECE_JOINTE_FIELDS = ("dossier_id", "type_piece", "libelle", "is_valide")
 
 # Dossier de stockage des fichiers
 UPLOAD_DIR = "uploads/pieces_jointes"
@@ -44,17 +49,29 @@ def list_pieces_by_dossier(
 @router.post("/", response_model=PieceJointe, status_code=status.HTTP_201_CREATED)
 def create_piece_jointe(
     piece_in: PieceJointeCreate,
+    http_request: Request,
     db: Session = Depends(get_db),
 ):
     """
     Ajoute une pièce jointe à un dossier.
     Endpoint public - pas d'authentification requise.
     """
-    return piece_jointe_repository.create(db, piece_in)
+    piece = piece_jointe_repository.create(db, piece_in)
+    audit_and_commit(
+        db,
+        request=http_request,
+        user=None,
+        action="create",
+        entity_type="piece_jointe",
+        entity_id=piece.id,
+        new_values=fields_snapshot(piece, *_PIECE_JOINTE_FIELDS),
+    )
+    return piece
 
 
 @router.post("/upload")
 async def upload_file(
+    http_request: Request,
     file: UploadFile = File(...),
     dossier_id: int = Form(...),
     type_piece: str = Form(...),
@@ -96,6 +113,16 @@ async def upload_file(
     )
     
     piece = piece_jointe_repository.create(db, piece_data)
+    audit_and_commit(
+        db,
+        request=http_request,
+        user=None,
+        action="create",
+        entity_type="piece_jointe",
+        entity_id=piece.id,
+        new_values=fields_snapshot(piece, *_PIECE_JOINTE_FIELDS),
+        details="upload",
+    )
     
     return {
         "id": piece.id,
@@ -107,52 +134,80 @@ async def upload_file(
 @router.patch("/{piece_id}/valider", response_model=PieceJointe)
 def valider_piece(
     piece_id: int,
-    request: CommentaireRequest = None,
+    http_request: Request,
+    body: CommentaireRequest = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("inscriptions", "validate")),
 ):
     """Valide une pièce jointe."""
-    commentaire = request.commentaire if request else None
-    piece = piece_jointe_repository.valider_piece(db, piece_id, commentaire)
-    if not piece:
+    existing = piece_jointe_repository.get_by_id(db, piece_id)
+    if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pièce jointe non trouvée"
         )
+    old_snapshot = fields_snapshot(existing, *_PIECE_JOINTE_FIELDS)
+    commentaire = body.commentaire if body else None
+    piece = piece_jointe_repository.valider_piece(db, piece_id, commentaire)
+    audit_and_commit(
+        db,
+        request=http_request,
+        user=current_user,
+        action="validate",
+        entity_type="piece_jointe",
+        entity_id=piece_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(piece, *_PIECE_JOINTE_FIELDS),
+    )
     return piece
 
 
 @router.patch("/{piece_id}/refuser", response_model=PieceJointe)
 def refuser_piece(
     piece_id: int,
-    request: RefusRequest,
+    body: RefusRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_scolarite_user),
+    current_user: User = Depends(require_permission("inscriptions", "validate")),
 ):
     """Refuse une pièce jointe."""
-    piece = piece_jointe_repository.refuser_piece(db, piece_id, request.commentaire)
-    if not piece:
+    existing = piece_jointe_repository.get_by_id(db, piece_id)
+    if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pièce jointe non trouvée"
         )
+    old_snapshot = fields_snapshot(existing, *_PIECE_JOINTE_FIELDS)
+    piece = piece_jointe_repository.refuser_piece(db, piece_id, body.commentaire)
+    audit_and_commit(
+        db,
+        request=http_request,
+        user=current_user,
+        action="validate",
+        entity_type="piece_jointe",
+        entity_id=piece_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(piece, *_PIECE_JOINTE_FIELDS),
+        details="refuser",
+    )
     return piece
 
 
 @router.delete("/{piece_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_piece(
     piece_id: int,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """Supprime une pièce jointe."""
-    # Récupérer la pièce pour supprimer le fichier
     piece = piece_jointe_repository.get_by_id(db, piece_id)
     if not piece:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pièce jointe non trouvée"
         )
+    old_snapshot = fields_snapshot(piece, *_PIECE_JOINTE_FIELDS)
     
     # Supprimer le fichier physique si existe
     if piece.fichier_url:
@@ -163,11 +218,19 @@ def delete_piece(
             except Exception:
                 pass  # Ignorer les erreurs de suppression de fichier
     
-    # Supprimer l'enregistrement
     success = piece_jointe_repository.hard_delete(db, piece_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pièce jointe non trouvée"
         )
+    audit_and_commit(
+        db,
+        request=http_request,
+        user=current_user,
+        action="delete",
+        entity_type="piece_jointe",
+        entity_id=piece_id,
+        old_values=old_snapshot,
+    )
     return None

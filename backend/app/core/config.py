@@ -17,6 +17,14 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "GestSco API"
     API_V1_STR: str = "/api/v1"
+    BACKUP_DIR: str = "backups"
+
+    # Maintenance administration (rétention + sauvegarde planifiée)
+    ADMIN_MAINTENANCE_ENABLED: bool = False
+    ADMIN_MAINTENANCE_INTERVAL_HOURS: int = 24
+    ADMIN_LOG_RETENTION_DAYS: int = 90
+    ADMIN_AUDIT_RETENTION_DAYS: int = 365
+    ADMIN_SCHEDULED_BACKUP_ENABLED: bool = False
 
 
 settings = Settings()

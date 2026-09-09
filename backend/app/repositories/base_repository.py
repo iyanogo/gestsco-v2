@@ -205,13 +205,14 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if hasattr(self.model, "is_active"):
             db_query = db_query.filter(self.model.is_active == True)
 
-        # Recherche dans code et nom/libelle
+        # Recherche dans code et nom/libelle (colonnes SQL uniquement)
         search_filters = []
         if hasattr(self.model, "code"):
             search_filters.append(self.model.code.ilike(search_term))
-        if hasattr(self.model, "nom"):
+        mapper = getattr(self.model, "__mapper__", None)
+        if mapper and "nom" in mapper.columns:
             search_filters.append(self.model.nom.ilike(search_term))
-        if hasattr(self.model, "libelle"):
+        if mapper and "libelle" in mapper.columns:
             search_filters.append(self.model.libelle.ilike(search_term))
         
         if search_filters:

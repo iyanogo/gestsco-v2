@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Button, Badge, Alert } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { PageHeader } from '../../../components/layouts';
 import { DataCard, DataTable, SearchFilter, Column, StatCard } from '../../../components/ui';
 import { factureService } from '../../../services/factureService';
+import { downloadBlob } from '../../../utils/formatters';
 import type { Facture } from '../../../types/finance';
 
 const FacturesListPage: React.FC = () => {
+  const location = useLocation();
   const [factures, setFactures] = useState<Facture[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(
+    (location.state as { successMessage?: string } | null)?.successMessage ?? null
+  );
   const [searchValue, setSearchValue] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
@@ -52,6 +57,16 @@ const FacturesListPage: React.FC = () => {
     }
   };
 
+  const handleDownloadPDF = async (facture: Facture) => {
+    try {
+      const blob = await factureService.downloadFacturePDF(facture.id);
+      downloadBlob(blob, `facture_${facture.numero_facture}.pdf`);
+    } catch (err) {
+      console.error('Erreur PDF facture:', err);
+      setError('Impossible de générer le PDF de la facture.');
+    }
+  };
+
   const columns: Column<Facture>[] = [
     { key: 'numero_facture', header: 'N° Facture', render: (item) => (
       <code className="text-primary fw-medium">{item.numero_facture}</code>
@@ -85,8 +100,8 @@ const FacturesListPage: React.FC = () => {
         <Button size="sm" variant="outline-success" title="Enregistrer un paiement">
           <i className="bi bi-cash"></i>
         </Button>
-        <Button size="sm" variant="outline-primary" title="Imprimer">
-          <i className="bi bi-printer"></i>
+        <Button size="sm" variant="outline-primary" title="Télécharger PDF" onClick={() => handleDownloadPDF(item)}>
+          <i className="bi bi-file-earmark-pdf"></i>
         </Button>
       </div>
     )}
@@ -108,6 +123,12 @@ const FacturesListPage: React.FC = () => {
 
   return (
     <div className="fade-in">
+      {successMessage && (
+        <Alert variant="success" dismissible onClose={() => setSuccessMessage(null)}>
+          {successMessage}
+        </Alert>
+      )}
+
       {error && (
         <Alert variant="danger" dismissible onClose={() => setError(null)}>
           {error}

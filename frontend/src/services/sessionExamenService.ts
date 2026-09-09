@@ -9,7 +9,7 @@ import {
   UpdateSessionExamen,
 } from '../types/evaluation';
 
-const BASE_URL = '/sessions-examen';
+const BASE_URL = '/api/v1/sessions-examen';
 
 export interface SessionExamenParams {
   skip?: number;

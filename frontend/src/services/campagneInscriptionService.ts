@@ -11,7 +11,7 @@ import {
   PlacesRestantes,
 } from '../types/inscription';
 
-const BASE_URL = '/campagnes-inscription';
+const BASE_URL = '/api/v1/campagnes-inscription';
 
 export interface CampagneParams {
   skip?: number;

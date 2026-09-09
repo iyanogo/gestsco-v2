@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.api.deps import get_db, get_current_active_user
+from app.core.permissions import is_admin_user
 from app.models.user import User
 from app.services.annee_academique_service import (
     AnneeAcademiqueService,
@@ -70,7 +71,7 @@ async def ouvrir_annee(
     **Permissions requises**: Admin
     """
     # Vérifier les permissions (à adapter selon votre système de rôles)
-    if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'superadmin']:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent ouvrir une année académique"
@@ -122,7 +123,7 @@ async def cloturer_semestre(
     
     **Permissions requises**: Admin
     """
-    if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'superadmin']:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent clôturer un semestre"
@@ -164,7 +165,7 @@ async def cloturer_annee(
     
     **Permissions requises**: Admin
     """
-    if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'superadmin']:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent clôturer une année"
@@ -208,7 +209,7 @@ async def archiver_annee(
     
     **Permissions requises**: Admin
     """
-    if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'superadmin']:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent archiver une année"
@@ -284,7 +285,7 @@ async def reconduire_referentiel(
     
     **Permissions requises**: Admin
     """
-    if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'superadmin']:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent reconduire le référentiel"

@@ -26,12 +26,34 @@ class UserRepository:
         return db.query(User).offset(skip).limit(limit).all()
 
     @staticmethod
+    def get_active_by_roles(
+        db: Session,
+        roles: List[str],
+        skip: int = 0,
+        limit: int = 500,
+    ) -> List[User]:
+        """Utilisateurs actifs filtrés par rôle (sélection staff)."""
+        if not roles:
+            return []
+        return (
+            db.query(User)
+            .filter(User.is_active.is_(True), User.role.in_(roles))
+            .order_by(User.full_name, User.email)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
     def create(db: Session, user_create: UserCreate) -> User:
         """Crée un nouvel utilisateur avec mot de passe hashé."""
         db_user = User(
             email=user_create.email,
             hashed_password=get_password_hash(user_create.password),
             full_name=user_create.full_name,
+            role=user_create.role or "enseignant",
+            is_active=user_create.is_active,
+            is_superuser=user_create.is_superuser,
         )
         db.add(db_user)
         db.commit()

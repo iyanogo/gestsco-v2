@@ -54,9 +54,11 @@ const MonEmploiTemps: React.FC<MonEmploiTempsProps> = ({
     try {
       const dateDebutStr = format(currentWeekStart, 'yyyy-MM-dd');
 
-      if (userRole === 'enseignant' && userId) {
+      if (userRole === 'enseignant') {
         const dateFinStr = format(addDays(currentWeekStart, 6), 'yyyy-MM-dd');
-        const data = await seanceService.getSeancesEnseignant(userId, dateDebutStr, dateFinStr);
+        const data = userId
+          ? await seanceService.getSeancesEnseignant(userId, dateDebutStr, dateFinStr)
+          : await seanceService.getMesSeances(dateDebutStr, dateFinStr);
         setSeances(data as SeanceWithDetails[]);
       } else if (niveauId) {
         const joursData = await seanceService.getSeancesSemaine(dateDebutStr, niveauId, filiereId);

@@ -6,7 +6,9 @@ import re
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.schemas.validators import EmailEtablissement, OptionalEmailEtablissement
 
 
 STATUTS_DOSSIER = ["en_cours", "complet", "valide", "refuse", "admis"]
@@ -18,7 +20,7 @@ class DossierCandidatureBase(BaseModel):
     campagne_id: int
     candidat_nom: str
     candidat_prenom: str
-    candidat_email: EmailStr
+    candidat_email: EmailEtablissement
     candidat_telephone: Optional[str] = None
     candidat_date_naissance: date
     candidat_lieu_naissance: Optional[str] = None
@@ -81,7 +83,7 @@ class DossierCandidatureUpdate(BaseModel):
     
     candidat_nom: Optional[str] = None
     candidat_prenom: Optional[str] = None
-    candidat_email: Optional[EmailStr] = None
+    candidat_email: OptionalEmailEtablissement = None
     candidat_telephone: Optional[str] = None
     candidat_date_naissance: Optional[date] = None
     candidat_lieu_naissance: Optional[str] = None

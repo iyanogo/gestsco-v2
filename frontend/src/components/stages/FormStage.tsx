@@ -37,11 +37,18 @@ interface Enseignant {
   prenom: string;
 }
 
+interface AnneeAcademique {
+  id: number;
+  code: string;
+  libelle?: string;
+}
+
 interface FormStageProps {
   initialData?: Partial<Stage>;
   etudiants?: Etudiant[];
   matieres?: Matiere[];
   niveaux?: Niveau[];
+  annees?: AnneeAcademique[];
   enseignants?: Enseignant[];
   onSubmit: (data: Partial<Stage>) => Promise<void>;
   onCancel: () => void;
@@ -52,6 +59,7 @@ const FormStage: React.FC<FormStageProps> = ({
   etudiants = [],
   matieres = [],
   niveaux = [],
+  annees = [],
   enseignants = [],
   onSubmit,
   onCancel
@@ -106,6 +114,8 @@ const FormStage: React.FC<FormStageProps> = ({
     switch (etape) {
       case 1:
         if (!formData.etudiant_id) newErreurs.etudiant_id = 'Étudiant requis';
+        if (!formData.matiere_id) newErreurs.matiere_id = 'Matière requise';
+        if (!formData.annee_academique_id) newErreurs.annee_academique_id = 'Année académique requise';
         if (!formData.niveau_id) newErreurs.niveau_id = 'Niveau requis';
         if (!formData.type_stage) newErreurs.type_stage = 'Type de stage requis';
         if (!formData.duree_semaines) newErreurs.duree_semaines = 'Durée requise';
@@ -250,18 +260,40 @@ const FormStage: React.FC<FormStageProps> = ({
         </Col>
       </Row>
 
-      <Form.Group className="mb-3">
-        <Form.Label>Matière associée</Form.Label>
-        <Form.Select
-          value={formData.matiere_id || ''}
-          onChange={(e) => handleChange('matiere_id', parseInt(e.target.value))}
-        >
-          <option value="">Sélectionner une matière (optionnel)</option>
-          {matieres.map(m => (
-            <option key={m.id} value={m.id}>{m.code} - {m.libelle}</option>
-          ))}
-        </Form.Select>
-      </Form.Group>
+      <Row>
+        <Col md={6}>
+          <Form.Group className="mb-3">
+            <Form.Label>Matière associée <span className="text-danger">*</span></Form.Label>
+            <Form.Select
+              value={formData.matiere_id || ''}
+              onChange={(e) => handleChange('matiere_id', parseInt(e.target.value))}
+              isInvalid={!!erreurs.matiere_id}
+            >
+              <option value="">Sélectionner une matière</option>
+              {matieres.map(m => (
+                <option key={m.id} value={m.id}>{m.code} - {m.libelle}</option>
+              ))}
+            </Form.Select>
+            <Form.Control.Feedback type="invalid">{erreurs.matiere_id}</Form.Control.Feedback>
+          </Form.Group>
+        </Col>
+        <Col md={6}>
+          <Form.Group className="mb-3">
+            <Form.Label>Année académique <span className="text-danger">*</span></Form.Label>
+            <Form.Select
+              value={formData.annee_academique_id || ''}
+              onChange={(e) => handleChange('annee_academique_id', parseInt(e.target.value))}
+              isInvalid={!!erreurs.annee_academique_id}
+            >
+              <option value="">Sélectionner une année</option>
+              {annees.map(a => (
+                <option key={a.id} value={a.id}>{a.code}{a.libelle ? ` - ${a.libelle}` : ''}</option>
+              ))}
+            </Form.Select>
+            <Form.Control.Feedback type="invalid">{erreurs.annee_academique_id}</Form.Control.Feedback>
+          </Form.Group>
+        </Col>
+      </Row>
     </>
   );
 

@@ -1,7 +1,7 @@
 import api from './api';
 import { Batiment, CreateBatiment, UpdateBatiment } from '../types/emploiTemps';
 
-const BASE_URL = '/batiments';
+const BASE_URL = '/api/v1/batiments';
 
 export interface GetBatimentsParams {
   skip?: number;

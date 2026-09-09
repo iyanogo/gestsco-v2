@@ -5,7 +5,7 @@
 import api from './api';
 import { Paiement, CreatePaiement } from '../types/inscription';
 
-const BASE_URL = '/paiements';
+const BASE_URL = '/api/v1/paiements';
 
 export interface PaiementParams {
   skip?: number;

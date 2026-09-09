@@ -9,7 +9,7 @@ import {
   ReleveNotes,
 } from '../types/evaluation';
 
-const BASE_URL = '/bulletins';
+const BASE_URL = '/api/v1/bulletins';
 
 export const bulletinService = {
   /**

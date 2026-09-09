@@ -1,246 +1,386 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Table, Button, Form, InputGroup, Badge, Modal, ProgressBar } from 'react-bootstrap';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Row, Col, Button, Badge, Form, Card, Table, Alert, Spinner, Modal,
+} from 'react-bootstrap';
+import { AxiosError } from 'axios';
+import { PageHeader } from '../../../components/layouts';
+import { DataCard } from '../../../components/ui';
+import { usePermissions } from '../../../hooks/usePermissions';
+import { deliberationService } from '../../../services/deliberationService';
+import { sessionExamenService } from '../../../services/sessionExamenService';
+import { getFilieres } from '../../../services/filiereService';
+import { getNiveaux } from '../../../services/niveauService';
+import { handleApiError } from '../../../utils/errorHandler';
+import { STATUT_DELIBERATION_LABELS, type Deliberation, type SessionExamen } from '../../../types/evaluation';
+import type { Filiere, Niveau } from '../../../types/reference';
 
-interface Deliberation {
-  id: number;
-  filiere: string;
-  niveau: string;
-  session: string;
-  anneeScolaire: string;
-  dateDeliberation: string;
-  nombreEtudiants: number;
-  admis: number;
-  ajournes: number;
-  exclus: number;
-  statut: 'en_attente' | 'en_cours' | 'terminee' | 'validee';
-  jury: string;
-}
+const extractErrorMessage = (error: unknown): string => {
+  if (error instanceof AxiosError) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+  }
+  return handleApiError(error);
+};
 
-const mockDeliberations: Deliberation[] = [
-  { id: 1, filiere: 'Informatique', niveau: 'L1', session: 'Session Normale S1', anneeScolaire: '2024-2025', dateDeliberation: '2025-01-28', nombreEtudiants: 120, admis: 85, ajournes: 30, exclus: 5, statut: 'en_attente', jury: 'Pr. Moussa Ndiaye' },
-  { id: 2, filiere: 'Informatique', niveau: 'L2', session: 'Session Normale S1', anneeScolaire: '2024-2025', dateDeliberation: '2025-01-28', nombreEtudiants: 95, admis: 72, ajournes: 20, exclus: 3, statut: 'en_attente', jury: 'Dr. Amadou Diallo' },
-  { id: 3, filiere: 'Gestion', niveau: 'L1', session: 'Session Normale S1', anneeScolaire: '2024-2025', dateDeliberation: '2025-01-29', nombreEtudiants: 150, admis: 0, ajournes: 0, exclus: 0, statut: 'en_attente', jury: 'Dr. Fatou Sow' },
-  { id: 4, filiere: 'Informatique', niveau: 'L3', session: 'Session Normale S2', anneeScolaire: '2023-2024', dateDeliberation: '2024-06-20', nombreEtudiants: 80, admis: 65, ajournes: 12, exclus: 3, statut: 'validee', jury: 'Pr. Ibrahima Fall' },
-  { id: 5, filiere: 'Économie', niveau: 'L2', session: 'Session Normale S2', anneeScolaire: '2023-2024', dateDeliberation: '2024-06-21', nombreEtudiants: 65, admis: 50, ajournes: 13, exclus: 2, statut: 'validee', jury: 'Dr. Aïssatou Ba' },
-];
+const statutBadge = (statut: string) => {
+  const label = STATUT_DELIBERATION_LABELS[statut as keyof typeof STATUT_DELIBERATION_LABELS] || statut;
+  const variant =
+    statut === 'validee' || statut === 'publiee'
+      ? 'success'
+      : statut === 'terminee'
+        ? 'info'
+        : statut === 'en_cours'
+          ? 'warning'
+          : 'secondary';
+  return <Badge bg={variant}>{label}</Badge>;
+};
 
 const DeliberationsPage: React.FC = () => {
-  const [deliberations, setDeliberations] = useState<Deliberation[]>(mockDeliberations);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { moduleActions } = usePermissions();
+  const { canCreate, canUpdate, canValidate } = moduleActions('evaluations_deliberations');
+  const [deliberations, setDeliberations] = useState<Deliberation[]>([]);
+  const [sessions, setSessions] = useState<SessionExamen[]>([]);
+  const [filieres, setFilieres] = useState<Filiere[]>([]);
+  const [niveaux, setNiveaux] = useState<Niveau[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [filterStatut, setFilterStatut] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [selectedDeliberation, setSelectedDeliberation] = useState<Deliberation | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showValidate, setShowValidate] = useState(false);
+  const [selected, setSelected] = useState<Deliberation | null>(null);
 
-  const filteredDeliberations = deliberations.filter(d => {
-    const matchSearch = d.filiere.toLowerCase().includes(searchTerm.toLowerCase()) || d.niveau.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatut = !filterStatut || d.statut === filterStatut;
-    return matchSearch && matchStatut;
-  });
+  const [formSessionId, setFormSessionId] = useState('');
+  const [formFiliereId, setFormFiliereId] = useState('');
+  const [formNiveauId, setFormNiveauId] = useState('');
+  const [formType, setFormType] = useState<'semestrielle' | 'annuelle'>('semestrielle');
+  const [formSemestre, setFormSemestre] = useState<'1' | '2'>('1');
 
-  const getStatutBadge = (statut: string) => {
-    switch (statut) {
-      case 'en_attente': return <Badge bg="secondary">En attente</Badge>;
-      case 'en_cours': return <Badge bg="warning" text="dark">En cours</Badge>;
-      case 'terminee': return <Badge bg="info">Terminée</Badge>;
-      case 'validee': return <Badge bg="success">Validée</Badge>;
-      default: return <Badge bg="secondary">{statut}</Badge>;
+  const filiereMap = useMemo(() => new Map(filieres.map((f) => [f.id, f])), [filieres]);
+  const niveauMap = useMemo(() => new Map(niveaux.map((n) => [n.id, n])), [niveaux]);
+  const sessionMap = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [delibData, sessionData, filiereData, niveauData] = await Promise.all([
+        deliberationService.getDeliberations({ limit: 200 }),
+        sessionExamenService.getSessions({ limit: 100 }),
+        getFilieres(),
+        getNiveaux(),
+      ]);
+      setDeliberations(delibData);
+      setSessions(sessionData);
+      setFilieres(filiereData);
+      setNiveaux(niveauData);
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const filtered = useMemo(
+    () => deliberations.filter((d) => !filterStatut || d.statut === filterStatut),
+    [deliberations, filterStatut],
+  );
+
+  const handleCreate = async () => {
+    if (!formSessionId || !formFiliereId || !formNiveauId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await deliberationService.creerDeliberationAuto({
+        session_id: parseInt(formSessionId, 10),
+        niveau_id: parseInt(formNiveauId, 10),
+        filiere_id: parseInt(formFiliereId, 10),
+        type_deliberation: formType,
+        semestre: formType === 'semestrielle' ? parseInt(formSemestre, 10) as 1 | 2 : undefined,
+      });
+      setSuccess(result.message);
+      setShowCreate(false);
+      await loadData();
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleValider = (id: number) => {
-    setDeliberations(deliberations.map(d => d.id === id ? { ...d, statut: 'validee' as const } : d));
-    setShowModal(false);
+  const handleTerminer = async (id: number) => {
+    try {
+      await deliberationService.terminerDeliberation(id);
+      await loadData();
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    }
   };
 
-  const handleDemarrer = (id: number) => {
-    setDeliberations(deliberations.map(d => d.id === id ? { ...d, statut: 'en_cours' as const } : d));
+  const handleValider = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await deliberationService.validerDeliberation(selected.id);
+      setSuccess('Délibération validée - résultats officiellement verrouillés (is_valide).');
+      setShowValidate(false);
+      setSelected(null);
+      await loadData();
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const stats = {
-    total: deliberations.length,
-    enAttente: deliberations.filter(d => d.statut === 'en_attente').length,
-    validees: deliberations.filter(d => d.statut === 'validee').length,
-    totalEtudiants: deliberations.reduce((acc, d) => acc + d.nombreEtudiants, 0)
+  const labelFiliereNiveau = (d: Deliberation) => {
+    const f = filiereMap.get(d.filiere_id);
+    const n = niveauMap.get(d.niveau_id);
+    return `${f?.libelle || f?.code || '-'} / ${n?.libelle || n?.code || '-'}`;
   };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center py-5">
+        <Spinner animation="border" />
+      </div>
+    );
+  }
 
   return (
-    <Container fluid className="py-4">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 className="mb-1 fw-bold">Délibérations</h2>
-              <p className="text-muted mb-0">Gestion des délibérations et validation des résultats</p>
-            </div>
-            <Button variant="outline-success">
-              <i className="bi bi-file-earmark-pdf me-2"></i>Générer PV
+    <div className="fade-in">
+      <PageHeader
+        title="Délibérations"
+        subtitle="Décisions officielles - ConfigurationDeliberation (admin/scolarité)"
+        breadcrumbs={[
+          { label: 'Évaluations', path: '/admin/evaluations' },
+          { label: 'Délibérations' },
+        ]}
+        actions={
+          canCreate ? (
+            <Button variant="primary" onClick={() => setShowCreate(true)}>
+              <i className="bi bi-plus-lg me-1" />
+              Lancer une délibération
             </Button>
-          </div>
-        </Col>
-      </Row>
+          ) : undefined
+        }
+      />
 
-      <Row className="mb-4">
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-primary text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-clipboard-data fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.total}</h3><small>Délibérations</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-warning text-dark">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-hourglass-split fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.enAttente}</h3><small>En attente</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-success text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-check-circle fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.validees}</h3><small>Validées</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="border-0 shadow-sm bg-info text-white">
-            <Card.Body className="d-flex align-items-center">
-              <div className="rounded-circle bg-white bg-opacity-25 p-3 me-3"><i className="bi bi-people fs-4"></i></div>
-              <div><h3 className="mb-0 fw-bold">{stats.totalEtudiants}</h3><small>Étudiants</small></div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      <Alert variant="info" className="mb-4">
+        Les résultats « calculés » (page Résultats) restent indicatifs tant qu&apos;une délibération
+        n&apos;est pas <strong>validée</strong>. La création applique{' '}
+        <code>ConfigurationDeliberation</code> (seuils, compensation, passage conditionnel).
+        Validation officielle : réservée superuser (API).
+      </Alert>
 
-      <Card className="border-0 shadow-sm">
-        <Card.Header className="bg-white py-3">
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert variant="success" dismissible onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
+      )}
+
+      <Card className="border-0 shadow-sm mb-3">
+        <Card.Body className="py-2">
           <Row className="align-items-center">
-            <Col md={5}>
-              <InputGroup>
-                <InputGroup.Text className="bg-light border-end-0"><i className="bi bi-search text-muted"></i></InputGroup.Text>
-                <Form.Control type="text" placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border-start-0" />
-              </InputGroup>
-            </Col>
-            <Col md={3}>
+            <Col md={4}>
               <Form.Select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
                 <option value="">Tous les statuts</option>
-                <option value="en_attente">En attente</option>
                 <option value="en_cours">En cours</option>
                 <option value="terminee">Terminée</option>
                 <option value="validee">Validée</option>
+                <option value="publiee">Publiée</option>
               </Form.Select>
             </Col>
-            <Col md={4} className="text-end">
-              <span className="text-muted">{filteredDeliberations.length} délibération(s)</span>
-            </Col>
+            <Col className="text-muted small">{filtered.length} délibération(s)</Col>
           </Row>
-        </Card.Header>
-        <Card.Body className="p-0">
-          <Table responsive hover className="mb-0">
-            <thead className="bg-light">
-              <tr>
-                <th className="border-0 px-4 py-3">Filière / Niveau</th>
-                <th className="border-0 py-3">Session</th>
-                <th className="border-0 py-3">Date</th>
-                <th className="border-0 py-3">Jury</th>
-                <th className="border-0 py-3 text-center">Étudiants</th>
-                <th className="border-0 py-3">Résultats</th>
-                <th className="border-0 py-3 text-center">Statut</th>
-                <th className="border-0 py-3 text-end px-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDeliberations.map((delib) => (
-                <tr key={delib.id}>
-                  <td className="px-4 py-3">
-                    <div className="fw-semibold">{delib.filiere}</div>
-                    <Badge bg="secondary">{delib.niveau}</Badge>
-                  </td>
-                  <td className="py-3">
-                    <div>{delib.session}</div>
-                    <small className="text-muted">{delib.anneeScolaire}</small>
-                  </td>
-                  <td className="py-3">{new Date(delib.dateDeliberation).toLocaleDateString('fr-FR')}</td>
-                  <td className="py-3"><small>{delib.jury}</small></td>
-                  <td className="py-3 text-center"><Badge bg="info" className="px-3 py-2">{delib.nombreEtudiants}</Badge></td>
-                  <td className="py-3">
-                    {delib.statut === 'validee' || delib.statut === 'terminee' ? (
-                      <div style={{ width: 150 }}>
-                        <div className="d-flex justify-content-between small mb-1">
-                          <span className="text-success">{delib.admis} admis</span>
-                          <span className="text-warning">{delib.ajournes} aj.</span>
-                          <span className="text-danger">{delib.exclus} excl.</span>
-                        </div>
-                        <ProgressBar style={{ height: 8 }}>
-                          <ProgressBar variant="success" now={(delib.admis / delib.nombreEtudiants) * 100} key={1} />
-                          <ProgressBar variant="warning" now={(delib.ajournes / delib.nombreEtudiants) * 100} key={2} />
-                          <ProgressBar variant="danger" now={(delib.exclus / delib.nombreEtudiants) * 100} key={3} />
-                        </ProgressBar>
-                      </div>
-                    ) : (
-                      <span className="text-muted">-</span>
-                    )}
-                  </td>
-                  <td className="py-3 text-center">{getStatutBadge(delib.statut)}</td>
-                  <td className="py-3 text-end px-4">
-                    {delib.statut === 'en_attente' && (
-                      <Button variant="warning" size="sm" className="me-2" onClick={() => handleDemarrer(delib.id)}>
-                        <i className="bi bi-play me-1"></i>Démarrer
-                      </Button>
-                    )}
-                    {(delib.statut === 'en_cours' || delib.statut === 'terminee') && (
-                      <Button variant="success" size="sm" className="me-2" onClick={() => { setSelectedDeliberation(delib); setShowModal(true); }}>
-                        <i className="bi bi-check-lg me-1"></i>Valider
-                      </Button>
-                    )}
-                    {delib.statut === 'validee' && (
-                      <>
-                        <Button variant="outline-primary" size="sm" className="me-2"><i className="bi bi-eye"></i></Button>
-                        <Button variant="outline-success" size="sm"><i className="bi bi-printer"></i></Button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
         </Card.Body>
       </Card>
 
-      {/* Modal Validation */}
-      <Modal show={showModal} onHide={() => setShowModal(false)}>
+      <DataCard title="Sessions de délibération">
+        {filtered.length === 0 ? (
+          <Alert variant="secondary" className="mb-0">
+            Aucune délibération. Prérequis : notes saisies + résultats calculés (/resultats/calculer/*).
+          </Alert>
+        ) : (
+          <Table responsive hover className="mb-0">
+            <thead className="table-light">
+              <tr>
+                <th>Filière / Niveau</th>
+                <th>Session</th>
+                <th>Type</th>
+                <th className="text-center">Effectif</th>
+                <th className="text-center">Admis</th>
+                <th className="text-center">Ajournés</th>
+                <th className="text-center">Statut</th>
+                <th className="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((d) => {
+                const session = sessionMap.get(d.session_id);
+                const isOfficial = d.statut === 'validee' || d.statut === 'publiee';
+                return (
+                  <tr key={d.id} className={isOfficial ? 'table-success' : undefined}>
+                    <td>{labelFiliereNiveau(d)}</td>
+                    <td>
+                      <div>{session?.libelle || session?.code || `#${d.session_id}`}</div>
+                      {!isOfficial && (
+                        <small className="text-warning">Décision jury non validée</small>
+                      )}
+                      {isOfficial && (
+                        <small className="text-success">Décision officielle</small>
+                      )}
+                    </td>
+                    <td>
+                      {d.type_deliberation}
+                      {d.semestre ? ` - S${d.semestre}` : ''}
+                    </td>
+                    <td className="text-center">{d.nombre_etudiants}</td>
+                    <td className="text-center text-success">{d.nombre_admis}</td>
+                    <td className="text-center text-warning">{d.nombre_ajournes}</td>
+                    <td className="text-center">{statutBadge(d.statut)}</td>
+                    <td className="text-end">
+                      {canUpdate && d.statut === 'en_cours' && (
+                        <Button size="sm" variant="outline-primary" className="me-1" onClick={() => handleTerminer(d.id)}>
+                          Terminer
+                        </Button>
+                      )}
+                      {canValidate && (d.statut === 'terminee' || d.statut === 'en_cours') && !d.publiee && (
+                        <Button
+                          size="sm"
+                          variant="success"
+                          onClick={() => {
+                            setSelected(d);
+                            setShowValidate(true);
+                          }}
+                        >
+                          Valider
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        )}
+      </DataCard>
+
+      <Modal show={showCreate} onHide={() => setShowCreate(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Lancer une délibération</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="g-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>Session d&apos;examen</Form.Label>
+                <Form.Select value={formSessionId} onChange={(e) => setFormSessionId(e.target.value)}>
+                  <option value="">-</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.libelle || s.code} (S{s.semestre})
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>Type</Form.Label>
+                <Form.Select
+                  value={formType}
+                  onChange={(e) => setFormType(e.target.value as 'semestrielle' | 'annuelle')}
+                >
+                  <option value="semestrielle">Semestrielle</option>
+                  <option value="annuelle">Annuelle</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            {formType === 'semestrielle' && (
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label>Semestre</Form.Label>
+                  <Form.Select value={formSemestre} onChange={(e) => setFormSemestre(e.target.value as '1' | '2')}>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            )}
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Filière</Form.Label>
+                <Form.Select value={formFiliereId} onChange={(e) => setFormFiliereId(e.target.value)}>
+                  <option value="">-</option>
+                  {filieres.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.libelle || f.code}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Niveau</Form.Label>
+                <Form.Select value={formNiveauId} onChange={(e) => setFormNiveauId(e.target.value)}>
+                  <option value="">-</option>
+                  {niveaux.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.libelle || n.code}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCreate(false)}>
+            Annuler
+          </Button>
+          <Button variant="primary" disabled={saving || !formSessionId || !formFiliereId || !formNiveauId} onClick={handleCreate}>
+            {saving ? <Spinner size="sm" animation="border" /> : 'Créer et délibérer'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal show={showValidate} onHide={() => setShowValidate(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Valider la délibération</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {selectedDeliberation && (
+          {selected && (
             <>
-              <p>Voulez-vous valider la délibération suivante ?</p>
-              <Card className="bg-light border-0">
-                <Card.Body>
-                  <p className="mb-1"><strong>Filière:</strong> {selectedDeliberation.filiere} - {selectedDeliberation.niveau}</p>
-                  <p className="mb-1"><strong>Session:</strong> {selectedDeliberation.session}</p>
-                  <p className="mb-1"><strong>Date:</strong> {new Date(selectedDeliberation.dateDeliberation).toLocaleDateString('fr-FR')}</p>
-                  <p className="mb-0"><strong>Jury:</strong> {selectedDeliberation.jury}</p>
-                </Card.Body>
-              </Card>
-              <div className="alert alert-warning mt-3 mb-0">
-                <i className="bi bi-exclamation-triangle me-2"></i>
-                Cette action est irréversible. Les résultats seront définitivement validés.
-              </div>
+              <p>Confirmer la validation officielle pour {labelFiliereNiveau(selected)} ?</p>
+              <Alert variant="warning" className="mb-0">
+                Action lourde de conséquences : les résultats seront marqués{' '}
+                <code>is_valide=true</code>. Nécessite un compte superuser côté API.
+              </Alert>
             </>
           )}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>Annuler</Button>
-          <Button variant="success" onClick={() => selectedDeliberation && handleValider(selectedDeliberation.id)}>
-            <i className="bi bi-check-lg me-2"></i>Valider définitivement
+          <Button variant="secondary" onClick={() => setShowValidate(false)}>
+            Annuler
+          </Button>
+          <Button variant="success" disabled={saving} onClick={handleValider}>
+            Valider définitivement
           </Button>
         </Modal.Footer>
       </Modal>
-    </Container>
+    </div>
   );
 };
 

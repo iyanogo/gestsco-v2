@@ -7,7 +7,7 @@ import {
   CreateRemiseEtudiant,
 } from '../types/finance';
 
-const BASE_URL = '/remises';
+const BASE_URL = '/api/v1/remises';
 
 export const remiseService = {
   getRemises: async (params?: {

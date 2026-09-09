@@ -58,6 +58,39 @@ describe('Header', () => {
     expect(notificationIcon).toBeInTheDocument();
   });
 
+  it('should show empty state when there are no notifications', () => {
+    renderHeader({ notificationItems: [] });
+
+    expect(screen.getByLabelText('Notifications')).toBeInTheDocument();
+    expect(screen.queryByText('3')).not.toBeInTheDocument();
+  });
+
+  it('should render notification badge and links', () => {
+    renderHeader({
+      notificationItems: [
+        {
+          id: 'doc-1',
+          title: 'Documents à valider',
+          message: '2 documents en attente',
+          href: '/admin/documents/liste',
+          variant: 'warning',
+        },
+      ],
+      notificationsViewAllHref: '/admin/documents/liste',
+    });
+
+    expect(screen.getByText('1')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Notifications'));
+    expect(screen.getByRole('link', { name: /Documents à valider/i })).toHaveAttribute(
+      'href',
+      '/admin/documents/liste'
+    );
+    expect(screen.getByRole('link', { name: /Voir le détail/i })).toHaveAttribute(
+      'href',
+      '/admin/documents/liste'
+    );
+  });
+
   it('should render search input', () => {
     renderHeader();
     

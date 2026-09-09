@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, Numeric, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Text, Numeric, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -9,7 +9,7 @@ class CompteEtudiant(Base):
     __tablename__ = "comptes_etudiants"
 
     id = Column(Integer, primary_key=True, index=True)
-    etudiant_id = Column(Integer, ForeignKey("etudiant.id"), unique=True, nullable=False)
+    etudiant_id = Column(Integer, ForeignKey("etudiant.id"), nullable=False)
     annee_academique_id = Column(Integer, ForeignKey("annees_academiques.id"), nullable=False)
     solde_actuel = Column(Numeric(10, 2), default=0)  # négatif si dette, positif si crédit
     total_facture = Column(Numeric(10, 2), default=0)
@@ -27,9 +27,12 @@ class CompteEtudiant(Base):
     annee_academique = relationship("AnneeAcademique")
     mouvements = relationship("MouvementCompte", back_populates="compte", order_by="desc(MouvementCompte.date_mouvement)")
 
-    # Index composite
     __table_args__ = (
-        Index('ix_comptes_etudiants_composite', 'etudiant_id', 'annee_academique_id'),
+        UniqueConstraint(
+            'etudiant_id',
+            'annee_academique_id',
+            name='uq_comptes_etudiants_etudiant_annee',
+        ),
     )
 
     def recalculer_soldes(self):

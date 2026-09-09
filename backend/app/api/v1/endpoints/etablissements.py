@@ -1,17 +1,22 @@
 """
 Endpoints API pour la gestion des établissements.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.api.deps import get_db, get_current_active_user, get_current_superuser
+from app.api.deps import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.repositories import etablissement_repository, departement_repository, universite_repository
 from app.schemas.etablissement import Etablissement, EtablissementCreate, EtablissementUpdate
 from app.schemas.departement import Departement
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter(prefix="/etablissements", tags=["Établissements"])
+
+_ETABLISSEMENT_FIELDS = ("code", "nom", "sigle", "ville", "universite_id", "is_active")
 
 
 @router.get(
@@ -90,8 +95,9 @@ def get_etablissement(
 )
 def create_etablissement(
     etablissement_in: EtablissementCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "create")),
 ):
     """Crée un nouvel établissement."""
     if not universite_repository.exists(db, etablissement_in.universite_id):
@@ -105,7 +111,17 @@ def create_etablissement(
             detail=f"Le code '{etablissement_in.code}' existe déjà",
         )
     try:
-        return etablissement_repository.create(db, etablissement_in)
+        etablissement = etablissement_repository.create(db, etablissement_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="etablissement",
+            entity_id=etablissement.id,
+            new_values=fields_snapshot(etablissement, *_ETABLISSEMENT_FIELDS),
+        )
+        return etablissement
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -123,8 +139,9 @@ def create_etablissement(
 def update_etablissement(
     etablissement_id: int,
     etablissement_in: EtablissementUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "update")),
 ):
     """Met à jour un établissement."""
     etablissement = etablissement_repository.get_by_id(db, etablissement_id)
@@ -147,8 +164,20 @@ def update_etablissement(
                 detail=f"Le code '{etablissement_in.code}' existe déjà",
             )
     
+    old_snapshot = fields_snapshot(etablissement, *_ETABLISSEMENT_FIELDS)
     try:
-        return etablissement_repository.update(db, etablissement_id, etablissement_in)
+        updated = etablissement_repository.update(db, etablissement_id, etablissement_in)
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="update",
+            entity_type="etablissement",
+            entity_id=etablissement_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(updated, *_ETABLISSEMENT_FIELDS),
+        )
+        return updated
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -165,15 +194,32 @@ def update_etablissement(
 )
 def delete_etablissement(
     etablissement_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_superuser),
+    current_user: User = Depends(require_permission("referentiel", "delete")),
 ):
     """Supprime un établissement (suppression logique)."""
+    etablissement = etablissement_repository.get_by_id(db, etablissement_id)
+    if not etablissement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Établissement non trouvé",
+        )
+    old_snapshot = fields_snapshot(etablissement, *_ETABLISSEMENT_FIELDS)
     if not etablissement_repository.delete(db, etablissement_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Établissement non trouvé",
         )
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="etablissement",
+        entity_id=etablissement_id,
+        old_values=old_snapshot,
+    )
     return {"message": "Établissement supprimé avec succès"}
 
 

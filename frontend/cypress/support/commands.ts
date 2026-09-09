@@ -11,13 +11,16 @@ declare global {
   }
 }
 
-// Login command
-Cypress.Commands.add('login', (email = 'admin@gestsco.com', password = 'admin123') => {
+// Login command - mot de passe aligné init_db (Admin@123)
+Cypress.Commands.add('login', (email = 'admin@gestsco.com', password = 'Admin@123') => {
+  cy.clearLocalStorage();
   cy.visit('/login');
-  cy.get('input[type="email"]').type(email);
-  cy.get('input[type="password"]').type(password);
+  cy.intercept('POST', '**/api/v1/auth/login').as('loginRequest');
+  cy.get('input[type="email"]').clear().type(email);
+  cy.get('input[type="password"]').clear().type(password);
   cy.get('button[type="submit"]').click();
-  cy.url().should('include', '/dashboard');
+  cy.wait('@loginRequest', { timeout: 20000 }).its('response.statusCode').should('eq', 200);
+  cy.url({ timeout: 20000 }).should('include', '/dashboard');
 });
 
 // Logout command

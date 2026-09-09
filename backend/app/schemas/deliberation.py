@@ -16,7 +16,7 @@ class DeliberationBase(BaseModel):
     date_deliberation: datetime
     type_deliberation: str = Field(
         ...,
-        pattern="^(semestre|annuelle)$"
+        pattern="^(semestrielle|semestre|annuelle)$"
     )
     semestre: Optional[int] = Field(None, ge=1, le=2)
     president_jury: Optional[int] = None
@@ -34,7 +34,7 @@ class DeliberationUpdate(BaseModel):
     date_deliberation: Optional[datetime] = None
     type_deliberation: Optional[str] = Field(
         None,
-        pattern="^(semestre|annuelle)$"
+        pattern="^(semestrielle|semestre|annuelle)$"
     )
     semestre: Optional[int] = Field(None, ge=1, le=2)
     president_jury: Optional[int] = None

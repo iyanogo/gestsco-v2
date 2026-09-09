@@ -2,25 +2,36 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar, { MenuItem } from './Sidebar';
 import Header from './Header';
+import type { HeaderNotification } from '../../types/notification';
 
 export interface MainLayoutProps {
   menuItems: MenuItem[];
-  userRole?: 'admin' | 'teacher' | 'student';
+  userRole?: 'admin' | 'teacher' | 'student' | 'scolarite' | 'comptable';
   user?: {
     name: string;
     role: string;
     avatar?: string;
   };
-  notifications?: number;
+  notificationItems?: HeaderNotification[];
+  notificationsLoading?: boolean;
+  notificationsViewAllHref?: string | null;
   onLogout?: () => void;
+  footerLabel?: string;
+  profilePath?: string;
+  settingsPath?: string | null;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
   menuItems,
   userRole = 'admin',
   user,
-  notifications = 0,
-  onLogout
+  notificationItems = [],
+  notificationsLoading = false,
+  notificationsViewAllHref = null,
+  onLogout,
+  footerLabel,
+  profilePath,
+  settingsPath,
 }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -46,6 +57,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         collapsed={sidebarCollapsed}
         onToggle={toggleSidebar}
         userRole={userRole}
+        footerLabel={footerLabel}
       />
 
       {sidebarOpen && (
@@ -58,9 +70,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       <div className={`main-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Header
           user={user}
-          notifications={notifications}
+          notificationItems={notificationItems}
+          notificationsLoading={notificationsLoading}
+          notificationsViewAllHref={notificationsViewAllHref}
           onToggleSidebar={toggleSidebar}
           onLogout={onLogout}
+          profilePath={profilePath}
+          settingsPath={settingsPath}
         />
 
         <main className="main-content">

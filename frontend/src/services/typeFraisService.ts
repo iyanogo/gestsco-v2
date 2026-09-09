@@ -1,7 +1,7 @@
 import api from './api';
 import { TypeFrais, CreateTypeFrais, UpdateTypeFrais } from '../types/finance';
 
-const BASE_URL = '/types-frais';
+const BASE_URL = '/api/v1/types-frais';
 
 export const typeFraisService = {
   getTypesFrais: async (params?: {

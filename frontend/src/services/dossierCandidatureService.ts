@@ -10,7 +10,7 @@ import {
   DossierCandidatureDetails,
 } from '../types/inscription';
 
-const BASE_URL = '/dossiers-candidature';
+const BASE_URL = '/api/v1/dossiers-candidature';
 
 export interface DossierParams {
   skip?: number;

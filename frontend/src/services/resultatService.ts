@@ -10,7 +10,37 @@ import {
   ClassementItem,
 } from '../types/evaluation';
 
-const BASE_URL = '/resultats';
+export interface TeacherMatiereResultatRow {
+  id: number;
+  etudiant_id: number;
+  matricule: string | null;
+  nom: string | null;
+  prenom: string | null;
+  matiere_id: number;
+  session_id: number;
+  note_cc: number | null;
+  note_tp: number | null;
+  note_examen: number | null;
+  moyenne_matiere: number | null;
+  credit_matiere: number;
+  credit_obtenu: number;
+  statut: string;
+  decision: string | null;
+  is_valide: boolean;
+}
+
+export interface TeacherMatiereResultatsResponse {
+  session_id: number;
+  matiere_id: number;
+  niveau_id: number;
+  effectif: number;
+  nb_valides: number;
+  taux_reussite: number;
+  moyenne_classe: number | null;
+  resultats: TeacherMatiereResultatRow[];
+}
+
+const BASE_URL = '/api/v1/resultats';
 
 export const resultatService = {
   // ============ Résultats Matières ============
@@ -29,6 +59,19 @@ export const resultatService = {
    */
   async getResultatsMatieresSession(session_id: number): Promise<ResultatMatiere[]> {
     const response = await api.get<ResultatMatiere[]>(`${BASE_URL}/matieres/session/${session_id}`);
+    return response.data;
+  },
+
+  /** Portail enseignant - lecture seule, matières enseignées */
+  async getMesResultatsMatieresEnseignement(params: {
+    session_id: number;
+    matiere_id: number;
+    niveau_id: number;
+  }): Promise<TeacherMatiereResultatsResponse> {
+    const response = await api.get<TeacherMatiereResultatsResponse>(
+      `${BASE_URL}/mes-matieres-enseignement`,
+      { params },
+    );
     return response.data;
   },
 

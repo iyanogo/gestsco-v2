@@ -219,7 +219,7 @@ const DashboardFinancesPage: React.FC = () => {
                   <Button
                     fullWidth
                     variant="outlined"
-                    onClick={() => navigate('/finances/remises')}
+                    onClick={() => navigate('/admin/finances/remises')}
                   >
                     Remises
                   </Button>

@@ -1,9 +1,10 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy.orm import Session
-
+import io
 from app.api.dependencies import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
 from app.models.user import User
 from app.schemas.template_document import (
     TemplateDocumentCreate,
@@ -13,10 +14,14 @@ from app.schemas.template_document import (
     TemplatePreviewResponse
 )
 from app.repositories.template_document_repository import template_document_repository
-from app.services.template_service import render_document, get_variables_disponibles
+from app.services.template_service import render_document, get_variables_disponibles, render_document_pdf
 from app.scripts.init_templates import init_templates
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter()
+
+_TEMPLATE_FIELDS = ("code", "libelle", "type_document", "etablissement_id", "is_active", "format_papier")
 
 
 @router.get("/", response_model=List[TemplateDocumentResponse])
@@ -91,50 +96,87 @@ def get_template_by_code(
 @router.post("/", response_model=TemplateDocumentResponse, status_code=status.HTTP_201_CREATED)
 def create_template(
     template_in: TemplateDocumentCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "create")),
 ):
-    """Crée un nouveau template de document"""
+    """Crée un nouveau template de document (superuser uniquement)."""
     existing = template_document_repository.get_by_code(db, template_in.code)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Un template avec le code '{template_in.code}' existe déjà"
         )
-    
-    return template_document_repository.create(db, template_in)
+
+    template = template_document_repository.create(db, template_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="template",
+        entity_id=template.id,
+        new_values=fields_snapshot(template, *_TEMPLATE_FIELDS),
+    )
+    return template
 
 
 @router.put("/{template_id}", response_model=TemplateDocumentResponse)
 def update_template(
     template_id: int,
     template_in: TemplateDocumentUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "update")),
 ):
-    """Met à jour un template de document"""
+    """Met à jour un template de document (superuser uniquement)."""
     template = template_document_repository.get_by_id(db, template_id)
     if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Template non trouvé"
         )
-    
-    return template_document_repository.update(db, template, template_in)
+
+    old_snapshot = fields_snapshot(template, *_TEMPLATE_FIELDS)
+    updated = template_document_repository.update(db, template, template_in)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="template",
+        entity_id=template_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(updated, *_TEMPLATE_FIELDS),
+    )
+    return updated
 
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_template(
     template_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "delete")),
 ):
-    """Supprime un template de document"""
-    if not template_document_repository.delete(db, template_id):
+    """Supprime un template de document (superuser uniquement)."""
+    template = template_document_repository.get_by_id(db, template_id)
+    if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Template non trouvé"
         )
+    old_snapshot = fields_snapshot(template, *_TEMPLATE_FIELDS)
+    template_document_repository.delete(db, template_id)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="template",
+        entity_id=template_id,
+        old_values=old_snapshot,
+    )
 
 
 @router.post("/{template_id}/preview", response_class=HTMLResponse)
@@ -152,6 +194,61 @@ def preview_template(
             detail="Template non trouvé"
         )
     return html
+
+
+@router.post("/{template_id}/pdf")
+def export_template_pdf(
+    template_id: int,
+    preview_data: TemplatePreviewRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Génère un PDF à partir du template avec les variables fournies."""
+    from app.utils.pdf_generator import PDFGenerationError
+
+    template = template_document_repository.get_by_id(db, template_id)
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template non trouvé")
+
+    try:
+        pdf_bytes = render_document_pdf(db, template.code, preview_data.variables, template.etablissement_id)
+    except PDFGenerationError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    if not pdf_bytes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template non trouvé")
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=template_{template.code}.pdf"},
+    )
+
+
+@router.post("/code/{code}/pdf")
+def export_template_pdf_by_code(
+    code: str,
+    preview_data: TemplatePreviewRequest,
+    etablissement_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Génère un PDF à partir du code du template."""
+    from app.utils.pdf_generator import PDFGenerationError
+
+    try:
+        pdf_bytes = render_document_pdf(db, code, preview_data.variables, etablissement_id)
+    except PDFGenerationError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    if not pdf_bytes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template non trouvé")
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=template_{code}.pdf"},
+    )
 
 
 @router.post("/code/{code}/render")
@@ -174,15 +271,20 @@ def render_template_by_code(
 
 @router.post("/initialiser")
 def initialiser_templates(
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("parametrage", "create")),
 ):
-    """Initialise les templates par défaut"""
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seuls les super-utilisateurs peuvent initialiser les templates"
-        )
-    
+    """Initialise les templates par défaut (superuser uniquement)."""
     count = init_templates(db)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="create",
+        entity_type="template",
+        entity_id="initialiser",
+        new_values={"templates_crees": count},
+        details="initialiser",
+    )
     return {"message": "Templates initialisés", "templates_crees": count}

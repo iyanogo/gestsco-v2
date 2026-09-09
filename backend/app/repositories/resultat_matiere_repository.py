@@ -10,12 +10,17 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.resultat_matiere import ResultatMatiere
 from app.models.note import Note
 from app.models.examen import Examen
+from app.models.inscription import Inscription
 from app.models.inscription_matiere import InscriptionMatiere
+from app.models.session_examen import SessionExamen
 from app.repositories.base_repository import BaseRepository
+from app.repositories.presence_repository import presence_repository
 from app.utils.calcul_notes import (
     calculer_moyenne_matiere,
     determiner_decision_matiere,
 )
+from app.utils.configuration_deliberation_resolver import resolve_config_snapshot
+from app.core.type_evaluation import assign_note_to_slot
 
 
 class ResultatMatiereRepository(BaseRepository[ResultatMatiere, None, None]):
@@ -73,6 +78,37 @@ class ResultatMatiereRepository(BaseRepository[ResultatMatiere, None, None]):
             ResultatMatiere.session_id == session_id
         ).offset(skip).limit(limit).all()
 
+    def get_by_session_matiere_niveau(
+        self,
+        db: Session,
+        session_id: int,
+        matiere_id: int,
+        niveau_id: int,
+        skip: int = 0,
+        limit: int = 1000,
+    ) -> list[ResultatMatiere]:
+        """Résultats matière d'une session pour un niveau (lecture portail enseignant)."""
+        return (
+            db.query(ResultatMatiere)
+            .options(
+                joinedload(ResultatMatiere.etudiant),
+                joinedload(ResultatMatiere.matiere),
+            )
+            .join(
+                InscriptionMatiere,
+                ResultatMatiere.inscription_matiere_id == InscriptionMatiere.id,
+            )
+            .join(Inscription, InscriptionMatiere.inscription_id == Inscription.id)
+            .filter(
+                ResultatMatiere.session_id == session_id,
+                ResultatMatiere.matiere_id == matiere_id,
+                Inscription.niveau_id == niveau_id,
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
     def get_by_inscription_matiere(
         self,
         db: Session,
@@ -109,9 +145,10 @@ class ResultatMatiereRepository(BaseRepository[ResultatMatiere, None, None]):
         Returns:
             Le résultat matière calculé
         """
-        # Récupérer l'inscription matière avec la matière
+        # Récupérer l'inscription matière avec la matière et l'inscription
         inscription_matiere = db.query(InscriptionMatiere).options(
-            joinedload(InscriptionMatiere.matiere)
+            joinedload(InscriptionMatiere.matiere),
+            joinedload(InscriptionMatiere.inscription),
         ).filter(
             InscriptionMatiere.id == inscription_matiere_id
         ).first()
@@ -134,21 +171,53 @@ class ResultatMatiereRepository(BaseRepository[ResultatMatiere, None, None]):
         for note in notes:
             examen = db.query(Examen).filter(Examen.id == note.examen_id).first()
             if examen:
-                if examen.type_evaluation == "cc":
-                    note_cc = note.note_sur_20
-                elif examen.type_evaluation == "tp":
-                    note_tp = note.note_sur_20
-                elif examen.type_evaluation in ("examen", "examen_final"):
-                    note_examen = note.note_sur_20
+                note_cc, note_tp, note_examen = assign_note_to_slot(
+                    examen.type_evaluation,
+                    note.note_sur_20,
+                    note_cc=note_cc,
+                    note_tp=note_tp,
+                    note_examen=note_examen,
+                )
         
         # Calculer la moyenne
         moyenne = calculer_moyenne_matiere(note_cc, note_tp, note_examen)
         
         # Récupérer le crédit de la matière
-        credit_matiere = inscription_matiere.matiere.credit if inscription_matiere.matiere else 0
-        
+        credit_matiere = float(inscription_matiere.matiere.credit or 3) if inscription_matiere.matiere else 3.0
+
+        session = db.query(SessionExamen).filter(SessionExamen.id == session_id).first()
+        annee_id = session.annee_academique_id if session else None
+        niveau_id = (
+            inscription_matiere.inscription.niveau_id
+            if inscription_matiere.inscription
+            else None
+        )
+        config = resolve_config_snapshot(db, annee_id, niveau_id)
+        notes_composantes = [n for n in (note_cc, note_tp, note_examen) if n is not None]
+
+        taux_presence = None
+        etudiant_id = (
+            inscription_matiere.inscription.etudiant_id
+            if inscription_matiere.inscription
+            else None
+        )
+        if etudiant_id and config.taux_presence_min is not None:
+            stats = presence_repository.calculer_taux_presence_etudiant(
+                db,
+                etudiant_id,
+                matiere_id=inscription_matiere.matiere_id,
+            )
+            if stats.get("total_seances", 0) > 0:
+                taux_presence = stats.get("taux_presence")
+
         # Déterminer la décision et les crédits obtenus
-        decision, credit_obtenu = determiner_decision_matiere(moyenne, credit_matiere)
+        decision, credit_obtenu = determiner_decision_matiere(
+            moyenne,
+            credit_matiere,
+            config=config,
+            notes_composantes=notes_composantes,
+            taux_presence=taux_presence,
+        )
         
         # Déterminer le statut
         statut = "valide" if decision == "admis" else "non_valide"

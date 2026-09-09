@@ -124,7 +124,7 @@ class ExamenRepository(BaseRepository[Examen, ExamenCreate, ExamenUpdate]):
         
         Args:
             db: Session de base de données
-            type_evaluation: Type d'évaluation (cc, tp, examen, projet)
+            type_evaluation: Type d'évaluation (controle_continu, examen_partiel, examen_final, tp, projet)
             session_id: ID de la session (optionnel)
             
         Returns:
@@ -136,6 +136,55 @@ class ExamenRepository(BaseRepository[Examen, ExamenCreate, ExamenUpdate]):
             query = query.filter(Examen.session_id == session_id)
         
         return query.order_by(Examen.date_examen).all()
+
+    def find_by_criteria(
+        self,
+        db: Session,
+        session_id: int,
+        matiere_id: int,
+        niveau_id: int,
+        type_evaluation: str,
+    ) -> Optional[Examen]:
+        """Retourne l'examen correspondant aux critères de saisie (ou None)."""
+        return (
+            db.query(Examen)
+            .filter(
+                Examen.session_id == session_id,
+                Examen.matiere_id == matiere_id,
+                Examen.niveau_id == niveau_id,
+                Examen.type_evaluation == type_evaluation,
+            )
+            .first()
+        )
+
+    def search(
+        self,
+        db: Session,
+        *,
+        session_id: Optional[int] = None,
+        matiere_id: Optional[int] = None,
+        niveau_id: Optional[int] = None,
+        type_evaluation: Optional[str] = None,
+        enseignant_id: Optional[int] = None,
+        statut: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Examen]:
+        """Recherche combinée (tous les filtres fournis sont appliqués en AND)."""
+        query = db.query(Examen)
+        if session_id is not None:
+            query = query.filter(Examen.session_id == session_id)
+        if matiere_id is not None:
+            query = query.filter(Examen.matiere_id == matiere_id)
+        if niveau_id is not None:
+            query = query.filter(Examen.niveau_id == niveau_id)
+        if type_evaluation is not None:
+            query = query.filter(Examen.type_evaluation == type_evaluation)
+        if enseignant_id is not None:
+            query = query.filter(Examen.enseignant_id == enseignant_id)
+        if statut is not None:
+            query = query.filter(Examen.statut == statut)
+        return query.offset(skip).limit(limit).all()
 
     def get_by_statut(
         self,

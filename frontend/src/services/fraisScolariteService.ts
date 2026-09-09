@@ -1,7 +1,7 @@
 import api from './api';
 import { FraisScolarite, CreateFraisScolarite, UpdateFraisScolarite } from '../types/finance';
 
-const BASE_URL = '/frais-scolarite';
+const BASE_URL = '/api/v1/frais-scolarite';
 
 export const fraisScolariteService = {
   getFraisScolarite: async (params?: {

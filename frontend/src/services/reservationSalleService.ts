@@ -5,7 +5,7 @@ import {
   UpdateReservationSalle 
 } from '../types/emploiTemps';
 
-const BASE_URL = '/reservations-salles';
+const BASE_URL = '/api/v1/reservations-salles';
 
 export interface GetReservationsParams {
   skip?: number;

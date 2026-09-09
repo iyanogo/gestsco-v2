@@ -98,6 +98,18 @@ export async function getStagesEncadrant(encadrantId: number): Promise<Stage[]> 
   return response.data;
 }
 
+/** Portail enseignant - stages encadrés par le compte connecté. */
+export async function getMesStagesEncadres(): Promise<Stage[]> {
+  const response = await api.get<Stage[]>(`${BASE_URL}/mes-stages-encadres`);
+  return response.data;
+}
+
+/** Portail étudiant - stages du compte connecté. */
+export async function getMesStages(): Promise<Stage[]> {
+  const response = await api.get<Stage[]>(`${BASE_URL}/mes-stages`);
+  return response.data;
+}
+
 /**
  * Récupère les statistiques des stages.
  */
@@ -118,6 +130,8 @@ export const stageService = {
   terminerStage,
   getStagesEtudiant,
   getStagesEncadrant,
+  getMesStagesEncadres,
+  getMesStages,
   getStatistiquesStages,
 };
 

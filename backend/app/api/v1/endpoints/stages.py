@@ -6,17 +6,27 @@ CRUD complet avec validation et statistiques.
 from typing import Optional, List
 from datetime import date
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 
 from app.api.deps import get_db, get_current_active_user
+from app.utils.rbac_resolver import require_permission
+from app.core.portal_access import (
+    assert_encadrant_owner,
+    assert_etudiant_owner,
+    resolve_etudiant_id,
+)
 from app.models.user import User
 from app.models.stage import Stage
 from app.services.stage_service import StageService, StageServiceError
 from app.repositories.stage_repository import StageRepository
+from app.utils.administration_events import audit_and_commit
+from app.utils.audit_snapshots import fields_snapshot
 
 router = APIRouter()
+
+_STAGE_FIELDS = ("code", "etudiant_id", "type_stage", "statut", "date_debut", "date_fin", "entreprise_nom")
 
 
 # Schémas Pydantic
@@ -91,9 +101,34 @@ class StageResponse(BaseModel):
     note_rapport: Optional[Decimal] = None
     note_soutenance: Optional[Decimal] = None
     note_finale: Optional[Decimal] = None
+    etudiant_nom: Optional[str] = None
+    etudiant_prenom: Optional[str] = None
+    etudiant_matricule: Optional[str] = None
+    matiere_code: Optional[str] = None
+    matiere_libelle: Optional[str] = None
+    niveau_libelle: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+def _stage_to_portal_response(stage: Stage) -> StageResponse:
+    """Enrichit un stage avec les libellés étudiant/matière/niveau."""
+    data = StageResponse.model_validate(stage)
+    updates: dict = {}
+    etu = stage.etudiant
+    if etu:
+        updates["etudiant_nom"] = etu.nom
+        updates["etudiant_prenom"] = etu.prenom
+        updates["etudiant_matricule"] = etu.matricule
+    matiere = stage.matiere
+    if matiere:
+        updates["matiere_code"] = matiere.code
+        updates["matiere_libelle"] = matiere.libelle
+    niveau = stage.niveau
+    if niveau:
+        updates["niveau_libelle"] = niveau.libelle
+    return data.model_copy(update=updates) if updates else data
 
 
 # Endpoints
@@ -107,7 +142,7 @@ async def list_stages(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("stages", "read")),
 ):
     """
     Récupère la liste des stages avec filtres optionnels.
@@ -130,8 +165,9 @@ async def list_stages(
 @router.post("/", response_model=StageResponse, summary="Créer un stage")
 async def create_stage(
     stage_data: StageCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("stages", "create")),
 ):
     """
     Crée un nouveau stage.
@@ -140,6 +176,15 @@ async def create_stage(
     
     try:
         stage = service.creer_stage(**stage_data.dict())
+        audit_and_commit(
+            db,
+            request=request,
+            user=current_user,
+            action="create",
+            entity_type="stage",
+            entity_id=stage.id,
+            new_values=fields_snapshot(stage, *_STAGE_FIELDS),
+        )
         return stage
     except StageServiceError as e:
         raise HTTPException(
@@ -148,11 +193,86 @@ async def create_stage(
         )
 
 
+@router.get("/mes-stages", response_model=List[StageResponse], summary="Mes stages (portail étudiant)")
+async def get_mes_stages(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Stages de l'étudiant connecté."""
+    etudiant_id = resolve_etudiant_id(db, current_user)
+    service = StageService(db)
+    return service.get_stages_etudiant(etudiant_id)
+
+
+@router.get("/mes-stages-encadres", response_model=List[StageResponse], summary="Mes stages encadrés (portail enseignant)")
+async def get_mes_stages_encadres(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Stages encadrés par l'enseignant connecté."""
+    stages = (
+        db.query(Stage)
+        .options(
+            joinedload(Stage.etudiant),
+            joinedload(Stage.matiere),
+            joinedload(Stage.niveau),
+        )
+        .filter(Stage.encadrant_academique_id == current_user.id)
+        .order_by(Stage.date_debut.desc())
+        .all()
+    )
+    return [_stage_to_portal_response(s) for s in stages]
+
+
+@router.get("/etudiant/{etudiant_id}", response_model=List[StageResponse], summary="Stages d'un étudiant")
+async def get_stages_etudiant(
+    etudiant_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Récupère tous les stages d'un étudiant.
+    """
+    assert_etudiant_owner(current_user, etudiant_id, db)
+    service = StageService(db)
+    stages = service.get_stages_etudiant(etudiant_id)
+    return stages
+
+
+@router.get("/encadrant/{encadrant_id}", response_model=List[StageResponse], summary="Stages encadrés")
+async def get_stages_encadrant(
+    encadrant_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Récupère tous les stages encadrés par un enseignant.
+    """
+    assert_encadrant_owner(current_user, encadrant_id)
+    service = StageService(db)
+    stages = service.get_stages_encadrant(encadrant_id)
+    return stages
+
+
+@router.get("/statistiques", summary="Statistiques des stages")
+async def get_statistiques_stages(
+    annee_id: int = Query(..., description="ID de l'année académique"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("stages", "read")),
+):
+    """
+    Génère les statistiques des stages pour une année académique.
+    """
+    service = StageService(db)
+    stats = service.get_statistiques_stages(annee_id)
+    return stats
+
+
 @router.get("/{stage_id}", response_model=StageResponse, summary="Détails d'un stage")
 async def get_stage(
     stage_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("stages", "read")),
 ):
     """
     Récupère les détails d'un stage.
@@ -170,8 +290,9 @@ async def get_stage(
 async def update_stage(
     stage_id: int,
     stage_data: StageUpdate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("stages", "update")),
 ):
     """
     Met à jour un stage.
@@ -182,21 +303,33 @@ async def update_stage(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Stage {stage_id} non trouvé"
         )
-    
+
+    old_snapshot = fields_snapshot(stage, *_STAGE_FIELDS)
     update_data = stage_data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(stage, field, value)
-    
+
     db.commit()
     db.refresh(stage)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="stage",
+        entity_id=stage_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(stage, *_STAGE_FIELDS),
+    )
     return stage
 
 
 @router.delete("/{stage_id}", summary="Supprimer un stage")
 async def delete_stage(
     stage_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("stages", "delete")),
 ):
     """
     Supprime un stage.
@@ -213,33 +346,57 @@ async def delete_stage(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Seuls les stages en cours peuvent être supprimés"
         )
-    
+
+    old_snapshot = fields_snapshot(stage, *_STAGE_FIELDS)
+    code = stage.code
     db.delete(stage)
     db.commit()
-    
-    return {"message": f"Stage {stage.code} supprimé"}
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="delete",
+        entity_type="stage",
+        entity_id=stage_id,
+        old_values=old_snapshot,
+    )
+
+    return {"message": f"Stage {code} supprimé"}
 
 
 @router.post("/{stage_id}/valider", summary="Valider un stage")
 async def valider_stage(
     stage_id: int,
-    request: ValiderStageRequest,
+    body: ValiderStageRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("stages", "validate")),
 ):
     """
     Valide un stage avec les notes de l'entreprise et du rapport.
     """
     service = StageService(db)
-    
+    existing = db.query(Stage).filter(Stage.id == stage_id).first()
+    old_snapshot = fields_snapshot(existing, *_STAGE_FIELDS) if existing else {}
+
     try:
         stage = service.valider_stage(
             stage_id=stage_id,
-            note_entreprise=request.note_entreprise,
-            note_rapport=request.note_rapport,
-            observations=request.observations
+            note_entreprise=body.note_entreprise,
+            note_rapport=body.note_rapport,
+            observations=body.observations
         )
-        
+        audit_and_commit(
+            db,
+            request=http_request,
+            user=current_user,
+            action="validate",
+            entity_type="stage",
+            entity_id=stage_id,
+            old_values=old_snapshot,
+            new_values=fields_snapshot(stage, *_STAGE_FIELDS),
+        )
+
         return {
             "message": f"Stage {stage.code} validé",
             "stage": {
@@ -260,8 +417,9 @@ async def valider_stage(
 @router.post("/{stage_id}/terminer", summary="Terminer un stage")
 async def terminer_stage(
     stage_id: int,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_permission("stages", "update")),
 ):
     """
     Marque un stage comme terminé.
@@ -279,52 +437,23 @@ async def terminer_stage(
             detail="Le stage doit être en cours pour être terminé"
         )
     
+    old_snapshot = fields_snapshot(stage, *_STAGE_FIELDS)
     stage.terminer()
     db.commit()
-    
+    db.refresh(stage)
+    audit_and_commit(
+        db,
+        request=request,
+        user=current_user,
+        action="update",
+        entity_type="stage",
+        entity_id=stage_id,
+        old_values=old_snapshot,
+        new_values=fields_snapshot(stage, *_STAGE_FIELDS),
+        details="terminer",
+    )
+
     return {
         "message": f"Stage {stage.code} terminé",
         "statut": stage.statut
     }
-
-
-@router.get("/etudiant/{etudiant_id}", response_model=List[StageResponse], summary="Stages d'un étudiant")
-async def get_stages_etudiant(
-    etudiant_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Récupère tous les stages d'un étudiant.
-    """
-    service = StageService(db)
-    stages = service.get_stages_etudiant(etudiant_id)
-    return stages
-
-
-@router.get("/encadrant/{encadrant_id}", response_model=List[StageResponse], summary="Stages encadrés")
-async def get_stages_encadrant(
-    encadrant_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Récupère tous les stages encadrés par un enseignant.
-    """
-    service = StageService(db)
-    stages = service.get_stages_encadrant(encadrant_id)
-    return stages
-
-
-@router.get("/statistiques", summary="Statistiques des stages")
-async def get_statistiques_stages(
-    annee_id: int = Query(..., description="ID de l'année académique"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Génère les statistiques des stages pour une année académique.
-    """
-    service = StageService(db)
-    stats = service.get_statistiques_stages(annee_id)
-    return stats

@@ -5,7 +5,7 @@ Modèle pour l'entité Étudiant
 from datetime import date, datetime
 from typing import Optional, List, TYPE_CHECKING
 
-from sqlalchemy import String, Boolean, Date, DateTime, BigInteger, Text, Index
+from sqlalchemy import String, Boolean, Date, DateTime, BigInteger, Text, Index, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.inscription import Inscription
     from app.models.inscrit import Inscrit
     from app.models.stage import Stage
+    from app.models.user import User
 
 
 class Etudiant(Base):
@@ -74,7 +75,16 @@ class Etudiant(Base):
     # Référence d'importation
     importation_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
+    # Lien compte portail
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        unique=True,
+        nullable=True,
+        index=True,
+    )
+
     # Relations
+    user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id])
     documents: Mapped[List["DocumentEtudiant"]] = relationship(
         "DocumentEtudiant",
         back_populates="etudiant",

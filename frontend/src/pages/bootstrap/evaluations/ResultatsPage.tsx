@@ -1,244 +1,639 @@
-import React, { useState } from 'react';
-import { Row, Col, Button, Badge, Form, Card, Table, ProgressBar } from 'react-bootstrap';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Row, Col, Button, Badge, Form, Card, Table, Alert, Spinner, Tab, Tabs,
+} from 'react-bootstrap';
+import { AxiosError } from 'axios';
 import { PageHeader } from '../../../components/layouts';
-import { DataCard, Avatar } from '../../../components/ui';
+import { DataCard } from '../../../components/ui';
+import { usePermissions } from '../../../hooks/usePermissions';
+import { resultatService } from '../../../services/resultatService';
+import { sessionExamenService } from '../../../services/sessionExamenService';
+import { getInscriptions } from '../../../services/inscriptionService';
+import { getEtudiants } from '../../../services/etudiantService';
+import { getMatieres } from '../../../services/matiereService';
+import { getFilieres } from '../../../services/filiereService';
+import { getNiveaux } from '../../../services/niveauService';
+import { handleApiError } from '../../../utils/errorHandler';
+import api from '../../../services/api';
+import type { ConfigurationDeliberation } from '../../../types/anneeAcademique';
+import {
+  DECISION_LABELS,
+  MENTION_LABELS,
+  type ResultatAnnuel,
+  type ResultatMatiere,
+  type ResultatSemestre,
+  type SessionExamen,
+} from '../../../types/evaluation';
+import type { Etudiant, Inscription } from '../../../types/etudiant';
+import type { Filiere, Matiere, Niveau } from '../../../types/reference';
 
-interface ResultatEtudiant {
-  id: number;
-  matricule: string;
-  nom: string;
-  prenom: string;
-  moyenne: number;
-  credits: number;
-  totalCredits: number;
-  rang: number;
-  decision: 'admis' | 'rattrapage' | 'redouble' | 'en_attente';
+interface InscriptionOption extends Inscription {
+  label: string;
 }
 
+const extractErrorMessage = (error: unknown): string => {
+  if (error instanceof AxiosError) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((item: { msg?: string }) => item.msg).filter(Boolean).join(', ');
+    }
+  }
+  return handleApiError(error);
+};
+
+const formatNote = (value?: number | null) =>
+  value != null ? value.toFixed(2) : '-';
+
+const statutMatiereBadge = (statut: string) => {
+  if (statut === 'valide') return <Badge bg="success">Validé</Badge>;
+  if (statut === 'non_valide') return <Badge bg="danger">Non validé</Badge>;
+  return <Badge bg="secondary">{statut || 'En cours'}</Badge>;
+};
+
+const decisionBadge = (decision?: string) => {
+  if (!decision) return <Badge bg="secondary">-</Badge>;
+  const variant =
+    decision === 'admis'
+      ? 'success'
+      : decision === 'admis_avec_dette'
+        ? 'info'
+        : decision === 'ajourne' || decision === 'rattrapage'
+          ? 'warning'
+          : decision === 'redouble' || decision === 'exclus'
+            ? 'danger'
+            : 'secondary';
+  const label = DECISION_LABELS[decision as keyof typeof DECISION_LABELS] || decision;
+  return <Badge bg={variant}>{label}</Badge>;
+};
+
 const ResultatsPage: React.FC = () => {
-  const [selectedClasse, setSelectedClasse] = useState('L3-INFO-A');
-  const [selectedSemestre, setSelectedSemestre] = useState('S1');
+  const { canPerform } = usePermissions();
+  const canCalculate = canPerform('evaluations_resultats', 'calculate');
+  const [sessions, setSessions] = useState<SessionExamen[]>([]);
+  const [filieres, setFilieres] = useState<Filiere[]>([]);
+  const [niveaux, setNiveaux] = useState<Niveau[]>([]);
+  const [matieres, setMatieres] = useState<Matiere[]>([]);
+  const [inscriptionOptions, setInscriptionOptions] = useState<InscriptionOption[]>([]);
 
-  const resultats: ResultatEtudiant[] = [
-    { id: 1, matricule: '2024-0125', nom: 'DIALLO', prenom: 'Amadou', moyenne: 14.5, credits: 28, totalCredits: 30, rang: 3, decision: 'admis' },
-    { id: 2, matricule: '2024-0126', nom: 'TRAORE', prenom: 'Fatou', moyenne: 15.8, credits: 30, totalCredits: 30, rang: 1, decision: 'admis' },
-    { id: 3, matricule: '2024-0127', nom: 'KONE', prenom: 'Ibrahim', moyenne: 8.5, credits: 12, totalCredits: 30, rang: 8, decision: 'rattrapage' },
-    { id: 4, matricule: '2024-0128', nom: 'OUEDRAOGO', prenom: 'Aïcha', moyenne: 15.2, credits: 30, totalCredits: 30, rang: 2, decision: 'admis' },
-    { id: 5, matricule: '2024-0129', nom: 'SANOGO', prenom: 'Moussa', moyenne: 11.2, credits: 22, totalCredits: 30, rang: 6, decision: 'admis' },
-    { id: 6, matricule: '2024-0130', nom: 'BARRY', prenom: 'Mariama', moyenne: 13.8, credits: 26, totalCredits: 30, rang: 4, decision: 'admis' },
-    { id: 7, matricule: '2024-0131', nom: 'COULIBALY', prenom: 'Seydou', moyenne: 12.5, credits: 24, totalCredits: 30, rang: 5, decision: 'admis' },
-    { id: 8, matricule: '2024-0132', nom: 'DIARRA', prenom: 'Aminata', moyenne: 9.8, credits: 18, totalCredits: 30, rang: 7, decision: 'rattrapage' },
-  ];
+  const [selectedSessionId, setSelectedSessionId] = useState('');
+  const [selectedFiliereId, setSelectedFiliereId] = useState('');
+  const [selectedNiveauId, setSelectedNiveauId] = useState('');
+  const [selectedInscriptionId, setSelectedInscriptionId] = useState('');
 
-  const getDecisionBadge = (decision: string) => {
-    switch (decision) {
-      case 'admis':
-        return <Badge bg="success">Admis</Badge>;
-      case 'rattrapage':
-        return <Badge bg="warning">Rattrapage</Badge>;
-      case 'redouble':
-        return <Badge bg="danger">Redouble</Badge>;
-      case 'en_attente':
-        return <Badge bg="secondary">En attente</Badge>;
-      default:
-        return <Badge bg="secondary">{decision}</Badge>;
+  const [resultatsMatieres, setResultatsMatieres] = useState<ResultatMatiere[]>([]);
+  const [resultatSemestre, setResultatSemestre] = useState<ResultatSemestre | null>(null);
+  const [resultatAnnuel, setResultatAnnuel] = useState<ResultatAnnuel | null>(null);
+  const [annuelIndisponible, setAnnuelIndisponible] = useState<string | null>(null);
+
+  const [loadingRefs, setLoadingRefs] = useState(true);
+  const [loadingResultats, setLoadingResultats] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('matieres');
+  const [seuilValidation, setSeuilValidation] = useState(10);
+
+  const matiereMap = useMemo(
+    () => new Map(matieres.map((m) => [m.id, m])),
+    [matieres],
+  );
+
+  const selectedSession = useMemo(
+    () => sessions.find((s) => s.id === parseInt(selectedSessionId, 10)),
+    [sessions, selectedSessionId],
+  );
+
+  const selectedInscription = useMemo(
+    () => inscriptionOptions.find((i) => i.id === parseInt(selectedInscriptionId, 10)),
+    [inscriptionOptions, selectedInscriptionId],
+  );
+
+  const filtersComplete =
+    selectedSessionId && selectedFiliereId && selectedNiveauId && selectedInscriptionId;
+
+  useEffect(() => {
+    const loadRefs = async () => {
+      try {
+        const [sessionData, filiereData, niveauData, matiereData, inscriptionData, etudiantData] =
+          await Promise.all([
+            sessionExamenService.getSessions({ limit: 100 }),
+            getFilieres(),
+            getNiveaux(),
+            getMatieres({ limit: 500 }),
+            getInscriptions({ limit: 500 }),
+            getEtudiants({ limit: 500 }),
+          ]);
+        setSessions(sessionData);
+        setFilieres(filiereData);
+        setNiveaux(niveauData);
+        setMatieres(matiereData);
+
+        const etudiantMap = new Map<number, Etudiant>(etudiantData.map((e) => [e.id, e]));
+        const filiereMap = new Map(filiereData.map((f) => [f.id, f]));
+        const niveauMap = new Map(niveauData.map((n) => [n.id, n]));
+
+        setInscriptionOptions(
+          inscriptionData.map((ins) => {
+            const etu = ins.etudiant_id ? etudiantMap.get(ins.etudiant_id) : undefined;
+            const fil = ins.filiere_id ? filiereMap.get(ins.filiere_id) : undefined;
+            const niv = ins.niveau_id ? niveauMap.get(ins.niveau_id) : undefined;
+            const nom = etu ? `${etu.nom || ''} ${etu.prenom || ''}`.trim() : `#${ins.etudiant_id}`;
+            return {
+              ...ins,
+              label: `${etu?.matricule || '-'} - ${nom} (${fil?.code || fil?.libelle || '-'} / ${niv?.code || niv?.libelle || '-'})`,
+            };
+          }),
+        );
+      } catch (err) {
+        setError(extractErrorMessage(err));
+      } finally {
+        setLoadingRefs(false);
+      }
+    };
+    loadRefs();
+  }, []);
+
+  const filteredInscriptions = useMemo(() => {
+    const filiereId = parseInt(selectedFiliereId, 10);
+    const niveauId = parseInt(selectedNiveauId, 10);
+    if (!selectedFiliereId || !selectedNiveauId) return [];
+    return inscriptionOptions.filter(
+      (i) => i.filiere_id === filiereId && i.niveau_id === niveauId,
+    );
+  }, [inscriptionOptions, selectedFiliereId, selectedNiveauId]);
+
+  useEffect(() => {
+    const loadConfigDeliberation = async () => {
+      if (!selectedSession?.annee_academique_id) {
+        setSeuilValidation(10);
+        return;
+      }
+      const niveauId = selectedNiveauId ? parseInt(selectedNiveauId, 10) : undefined;
+      try {
+        const response = await api.get<ConfigurationDeliberation[]>(
+          '/api/v1/configurations-deliberation/',
+          { params: { annee_academique_id: selectedSession.annee_academique_id } },
+        );
+        const configs = response.data;
+        const niveauConfig = niveauId
+          ? configs.find((c) => c.niveau_id === niveauId)
+          : undefined;
+        const globalConfig = configs.find((c) => c.niveau_id == null);
+        const applicable = niveauConfig || globalConfig;
+        setSeuilValidation(applicable?.moyenne_validation ?? 10);
+      } catch {
+        setSeuilValidation(10);
+      }
+    };
+    loadConfigDeliberation();
+  }, [selectedSession, selectedNiveauId]);
+
+  const loadResultats = useCallback(async () => {
+    if (!filtersComplete || !selectedInscription || !selectedSession) return;
+
+    const etudiantId = selectedInscription.etudiant_id;
+    const sessionId = selectedSession.id;
+    const semestre = selectedSession.semestre;
+
+    if (!etudiantId) {
+      setError('Inscription sans étudiant associé.');
+      return;
+    }
+
+    setLoadingResultats(true);
+    setError(null);
+    setAnnuelIndisponible(null);
+
+    try {
+      const [matieresRes, semestresRes, annuelsRes] = await Promise.all([
+        resultatService.getResultatsMatieres(etudiantId, sessionId),
+        resultatService.getResultatsSemestres(etudiantId),
+        resultatService.getResultatsAnnuels(etudiantId),
+      ]);
+
+      setResultatsMatieres(matieresRes);
+      setResultatSemestre(
+        semestresRes.find(
+          (r) => r.session_id === sessionId && r.semestre === semestre,
+        ) ?? null,
+      );
+
+      const annuel = annuelsRes.find((r) => r.inscription_id === selectedInscription.id) ?? null;
+      setResultatAnnuel(annuel);
+      if (!annuel) {
+        setAnnuelIndisponible(
+          'Aucun résultat annuel en base - lancer le calcul après les deux semestres.',
+        );
+      }
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setLoadingResultats(false);
+    }
+  }, [filtersComplete, selectedInscription, selectedSession]);
+
+  const handleCalculerEtCharger = async () => {
+    if (!filtersComplete || !selectedInscription || !selectedSession) return;
+
+    setCalculating(true);
+    setError(null);
+    setSuccess(null);
+
+    const sessionId = selectedSession.id;
+    const semestre = selectedSession.semestre;
+    const inscriptionId = selectedInscription.id;
+
+    try {
+      const sessionCalc = await resultatService.calculerResultatsSession(sessionId);
+      const semestreCalc = await resultatService.calculerResultatsSemestre(sessionId, semestre);
+
+      let annuelMsg = '';
+      try {
+        await resultatService.calculerResultatAnnuel(inscriptionId);
+      } catch (err) {
+        annuelMsg = ' (résultat annuel partiel ou indisponible - deux semestres requis)';
+        setAnnuelIndisponible(extractErrorMessage(err));
+      }
+
+      setSuccess(
+        `${sessionCalc.message}. ${semestreCalc.message}${annuelMsg}`,
+      );
+      await loadResultats();
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setCalculating(false);
     }
   };
 
-  const getMoyenneColor = (moyenne: number) => {
-    if (moyenne >= 14) return 'success';
-    if (moyenne >= 12) return 'info';
-    if (moyenne >= 10) return 'warning';
-    return 'danger';
+  const matiereLabel = (matiereId: number) => {
+    const m = matiereMap.get(matiereId);
+    if (!m) return `Matière #${matiereId}`;
+    return `${m.code || '-'} - ${m.libelle || '-'}`;
   };
 
-  // Statistiques
-  const stats = {
-    total: resultats.length,
-    admis: resultats.filter(r => r.decision === 'admis').length,
-    rattrapage: resultats.filter(r => r.decision === 'rattrapage').length,
-    moyenne: resultats.reduce((sum, r) => sum + r.moyenne, 0) / resultats.length,
-    tauxReussite: (resultats.filter(r => r.decision === 'admis').length / resultats.length) * 100
-  };
+  const creditsObtenusMatieres = resultatsMatieres.reduce(
+    (sum, r) => sum + (r.credit_obtenu || 0),
+    0,
+  );
+  const creditsInscritsMatieres = resultatsMatieres.reduce(
+    (sum, r) => sum + (r.credit_matiere || 0),
+    0,
+  );
+
+  if (loadingRefs) {
+    return (
+      <div className="d-flex justify-content-center py-5">
+        <Spinner animation="border" />
+      </div>
+    );
+  }
 
   return (
     <div className="fade-in">
       <PageHeader
         title="Résultats"
-        subtitle="Consultation des résultats par classe"
+        subtitle="Consultation des résultats - calcul backend LMD (admin/scolarité)"
         breadcrumbs={[
           { label: 'Évaluations', path: '/admin/evaluations' },
-          { label: 'Résultats' }
+          { label: 'Résultats' },
         ]}
-        actions={
-          <div className="d-flex gap-2">
-            <Button variant="outline-primary">
-              <i className="bi bi-download me-2"></i>
-              Exporter
-            </Button>
-            <Button variant="primary">
-              <i className="bi bi-printer me-2"></i>
-              Imprimer PV
-            </Button>
-          </div>
-        }
       />
 
-      {/* Filtres */}
+      <Alert variant="info" className="mb-4">
+        Les moyennes, crédits ECTS et mentions affichés proviennent des endpoints{' '}
+        <code>/api/v1/resultats/calculer/*</code> - aucun recalcul LMD côté navigateur.
+        Les seuils de validation (matière, semestre, annuel) suivent{' '}
+        <code>ConfigurationDeliberation</code> (repli 10/20 si aucune config).
+        Périmètre actuel : admin / scolarité uniquement.
+      </Alert>
+
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert variant="success" dismissible onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
+      )}
+
       <Card className="border-0 shadow-sm mb-4">
         <Card.Body>
           <Row className="g-3 align-items-end">
-            <Col md={4}>
-              <Form.Group>
-                <Form.Label>Classe</Form.Label>
-                <Form.Select
-                  value={selectedClasse}
-                  onChange={(e) => setSelectedClasse(e.target.value)}
-                >
-                  <option value="L3-INFO-A">L3 Informatique A</option>
-                  <option value="L3-INFO-B">L3 Informatique B</option>
-                  <option value="L2-INFO-A">L2 Informatique A</option>
-                  <option value="M1-INFO">M1 Informatique</option>
-                </Form.Select>
-              </Form.Group>
-            </Col>
             <Col md={3}>
               <Form.Group>
-                <Form.Label>Semestre</Form.Label>
+                <Form.Label>Session d&apos;examen</Form.Label>
                 <Form.Select
-                  value={selectedSemestre}
-                  onChange={(e) => setSelectedSemestre(e.target.value)}
+                  value={selectedSessionId}
+                  onChange={(e) => setSelectedSessionId(e.target.value)}
                 >
-                  <option value="S1">Semestre 1</option>
-                  <option value="S2">Semestre 2</option>
-                  <option value="annuel">Annuel</option>
-                </Form.Select>
-              </Form.Group>
-            </Col>
-            <Col md={3}>
-              <Form.Group>
-                <Form.Label>Année académique</Form.Label>
-                <Form.Select defaultValue="2025-2026">
-                  <option value="2025-2026">2025-2026</option>
-                  <option value="2024-2025">2024-2025</option>
+                  <option value="">- Sélectionner -</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.libelle || s.code} (S{s.semestre})
+                    </option>
+                  ))}
                 </Form.Select>
               </Form.Group>
             </Col>
             <Col md={2}>
-              <Button variant="primary" className="w-100">
-                <i className="bi bi-search me-1"></i>
-                Afficher
+              <Form.Group>
+                <Form.Label>Filière</Form.Label>
+                <Form.Select
+                  value={selectedFiliereId}
+                  onChange={(e) => {
+                    setSelectedFiliereId(e.target.value);
+                    setSelectedInscriptionId('');
+                  }}
+                >
+                  <option value="">-</option>
+                  {filieres.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.libelle || f.code}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={2}>
+              <Form.Group>
+                <Form.Label>Niveau</Form.Label>
+                <Form.Select
+                  value={selectedNiveauId}
+                  onChange={(e) => {
+                    setSelectedNiveauId(e.target.value);
+                    setSelectedInscriptionId('');
+                  }}
+                >
+                  <option value="">-</option>
+                  {niveaux.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.libelle || n.code}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group>
+                <Form.Label>Étudiant (inscription)</Form.Label>
+                <Form.Select
+                  value={selectedInscriptionId}
+                  onChange={(e) => setSelectedInscriptionId(e.target.value)}
+                  disabled={!selectedFiliereId || !selectedNiveauId}
+                >
+                  <option value="">- Sélectionner -</option>
+                  {filteredInscriptions.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={2} className="d-flex gap-2">
+              {canCalculate && (
+                <Button
+                  variant="primary"
+                  className="flex-grow-1"
+                  disabled={!filtersComplete || calculating}
+                  onClick={handleCalculerEtCharger}
+                >
+                  {calculating ? (
+                    <Spinner size="sm" animation="border" />
+                  ) : (
+                    <>
+                      <i className="bi bi-calculator me-1" />
+                      Calculer
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button
+                variant="outline-secondary"
+                disabled={!filtersComplete || loadingResultats}
+                onClick={loadResultats}
+                title="Recharger sans recalculer"
+              >
+                <i className="bi bi-arrow-clockwise" />
               </Button>
             </Col>
           </Row>
         </Card.Body>
       </Card>
 
-      {/* Statistiques */}
-      <Row className="g-3 mb-4">
-        <Col sm={6} lg={3}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="text-center">
-              <div className="fs-3 fw-bold text-primary">{stats.total}</div>
-              <small className="text-muted">Étudiants</small>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col sm={6} lg={3}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="text-center">
-              <div className="fs-3 fw-bold text-success">{stats.admis}</div>
-              <small className="text-muted">Admis</small>
-              <ProgressBar 
-                now={stats.tauxReussite} 
-                variant="success" 
-                className="mt-2" 
-                style={{ height: '6px' }}
-              />
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col sm={6} lg={3}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="text-center">
-              <div className="fs-3 fw-bold text-warning">{stats.rattrapage}</div>
-              <small className="text-muted">Rattrapage</small>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col sm={6} lg={3}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="text-center">
-              <div className={`fs-3 fw-bold text-${getMoyenneColor(stats.moyenne)}`}>
-                {stats.moyenne.toFixed(2)}/20
-              </div>
-              <small className="text-muted">Moyenne classe</small>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      {!filtersComplete ? (
+        <Alert variant="secondary">Sélectionnez une session, une filière, un niveau et un étudiant.</Alert>
+      ) : loadingResultats ? (
+        <div className="text-center py-5">
+          <Spinner animation="border" />
+        </div>
+      ) : (
+        <Tabs activeKey={activeTab} onSelect={(k) => k && setActiveTab(k)} className="mb-3">
+          <Tab eventKey="matieres" title="Par matière">
+            <DataCard title={`Résultats matières - session ${selectedSession?.libelle || ''}`}>
+              {resultatsMatieres.length === 0 ? (
+                <Alert variant="warning" className="mb-0">
+                  Aucun résultat matière. Saisir des notes puis lancer « Calculer ».
+                </Alert>
+              ) : (
+                <>
+                  <Row className="g-3 mb-3">
+                    <Col sm={4}>
+                      <Card className="border-0 bg-light">
+                        <Card.Body className="py-2 text-center">
+                          <small className="text-muted d-block">Crédits ECTS (session)</small>
+                          <span className="fs-5 fw-bold">
+                            {creditsObtenusMatieres} / {creditsInscritsMatieres}
+                          </span>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                    <Col sm={4}>
+                      <Card className="border-0 bg-light">
+                        <Card.Body className="py-2 text-center">
+                          <small className="text-muted d-block">Matières validées</small>
+                          <span className="fs-5 fw-bold">
+                            {resultatsMatieres.filter((r) => r.statut === 'valide').length} /{' '}
+                            {resultatsMatieres.length}
+                          </span>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                    <Col sm={4}>
+                      <Card className="border-0 bg-light">
+                        <Card.Body className="py-2 text-center">
+                          <small className="text-muted d-block">Seuil validation matière</small>
+                          <span className="fs-6">≥ {seuilValidation}/20 (ConfigurationDeliberation)</span>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                  </Row>
+                  <Table responsive hover className="mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th>Matière</th>
+                        <th className="text-center">CC</th>
+                        <th className="text-center">TP</th>
+                        <th className="text-center">Examen</th>
+                        <th className="text-center">Moyenne</th>
+                        <th className="text-center">ECTS</th>
+                        <th className="text-center">Obtenus</th>
+                        <th className="text-center">Statut</th>
+                        <th className="text-center">Décision</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resultatsMatieres.map((r) => (
+                        <tr key={r.id}>
+                          <td>{matiereLabel(r.matiere_id)}</td>
+                          <td className="text-center">{formatNote(r.note_cc)}</td>
+                          <td className="text-center">{formatNote(r.note_tp)}</td>
+                          <td className="text-center">{formatNote(r.note_examen)}</td>
+                          <td className="text-center fw-bold">{formatNote(r.moyenne_matiere)}</td>
+                          <td className="text-center">{r.credit_matiere ?? '-'}</td>
+                          <td className="text-center">{r.credit_obtenu ?? 0}</td>
+                          <td className="text-center">{statutMatiereBadge(r.statut)}</td>
+                          <td className="text-center">{decisionBadge(r.decision)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </>
+              )}
+            </DataCard>
+          </Tab>
 
-      {/* Tableau des résultats */}
-      <DataCard title={`Résultats - ${selectedClasse} - ${selectedSemestre}`}>
-        <Table responsive hover className="mb-0">
-          <thead className="table-light">
-            <tr>
-              <th style={{ width: '60px' }}>Rang</th>
-              <th>Étudiant</th>
-              <th style={{ width: '120px' }}>Matricule</th>
-              <th style={{ width: '120px' }} className="text-center">Moyenne</th>
-              <th style={{ width: '150px' }} className="text-center">Crédits</th>
-              <th style={{ width: '120px' }} className="text-center">Décision</th>
-              <th style={{ width: '100px' }} className="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resultats.sort((a, b) => a.rang - b.rang).map((etudiant) => (
-              <tr key={etudiant.id}>
-                <td className="text-center">
-                  {etudiant.rang <= 3 ? (
-                    <Badge bg={etudiant.rang === 1 ? 'warning' : etudiant.rang === 2 ? 'secondary' : 'danger'} className="px-2">
-                      {etudiant.rang === 1 ? '🥇' : etudiant.rang === 2 ? '🥈' : '🥉'} {etudiant.rang}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted">{etudiant.rang}</span>
-                  )}
-                </td>
-                <td>
-                  <div className="d-flex align-items-center gap-2">
-                    <Avatar name={`${etudiant.prenom} ${etudiant.nom}`} size="sm" />
-                    <span className="fw-medium">{etudiant.nom} {etudiant.prenom}</span>
-                  </div>
-                </td>
-                <td><code>{etudiant.matricule}</code></td>
-                <td className="text-center">
-                  <span className={`fw-bold text-${getMoyenneColor(etudiant.moyenne)}`}>
-                    {etudiant.moyenne.toFixed(2)}/20
-                  </span>
-                </td>
-                <td>
-                  <div className="d-flex align-items-center gap-2">
-                    <ProgressBar 
-                      now={(etudiant.credits / etudiant.totalCredits) * 100}
-                      variant={etudiant.credits === etudiant.totalCredits ? 'success' : 'info'}
-                      style={{ height: '8px', flex: 1 }}
-                    />
-                    <small className="text-muted">{etudiant.credits}/{etudiant.totalCredits}</small>
-                  </div>
-                </td>
-                <td className="text-center">{getDecisionBadge(etudiant.decision)}</td>
-                <td className="text-center">
-                  <Button size="sm" variant="outline-primary" title="Voir détails">
-                    <i className="bi bi-eye"></i>
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </DataCard>
+          <Tab eventKey="semestre" title="Semestre">
+            <DataCard title={`Résultat semestre ${selectedSession?.semestre || ''}`}>
+              {!resultatSemestre ? (
+                <Alert variant="warning" className="mb-0">
+                  Aucun résultat semestriel - lancer « Calculer » après saisie des notes matières.
+                  Décision semestrielle calculée côté backend selon{' '}
+                  <code>ConfigurationDeliberation</code> (crédits min, passage conditionnel).
+                </Alert>
+              ) : (
+                <Row className="g-3">
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Moyenne générale</small>
+                        <div className="fs-4 fw-bold">{formatNote(resultatSemestre.moyenne_generale)}/20</div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Crédits ECTS</small>
+                        <div className="fs-4 fw-bold">
+                          {resultatSemestre.total_credits_obtenus} /{' '}
+                          {resultatSemestre.total_credits_inscrits}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Décision</small>
+                        <div className="mt-1">{decisionBadge(resultatSemestre.decision)}</div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Mention</small>
+                        <div className="fs-5 fw-medium mt-1">
+                          {resultatSemestre.mention
+                            ? MENTION_LABELS[resultatSemestre.mention] || resultatSemestre.mention
+                            : '-'}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col xs={12}>
+                    <p className="text-muted small mb-0">
+                      Matières validées : {resultatSemestre.nombre_matieres_validees} /{' '}
+                      {resultatSemestre.nombre_matieres} - statut : {resultatSemestre.statut}
+                    </p>
+                  </Col>
+                </Row>
+              )}
+            </DataCard>
+          </Tab>
+
+          <Tab eventKey="annuel" title="Annuel">
+            <DataCard title="Résultat annuel">
+              {!resultatAnnuel ? (
+                <Alert variant="warning" className="mb-0">
+                  {annuelIndisponible ||
+                    'Résultat annuel en attente - nécessite les résultats des deux semestres calculés côté backend.'}
+                  {' '}La compensation inter-semestres suit{' '}
+                  <code>ConfigurationDeliberation</code>.
+                </Alert>
+              ) : (
+                <Row className="g-3">
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Moyenne annuelle</small>
+                        <div className="fs-4 fw-bold">{formatNote(resultatAnnuel.moyenne_annuelle)}/20</div>
+                        <small className="text-muted">
+                          S1 : {formatNote(resultatAnnuel.moyenne_semestre1)} - S2 :{' '}
+                          {formatNote(resultatAnnuel.moyenne_semestre2)}
+                        </small>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Crédits annuels</small>
+                        <div className="fs-4 fw-bold">
+                          {resultatAnnuel.total_credits_obtenus} /{' '}
+                          {resultatAnnuel.total_credits_inscrits}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Décision</small>
+                        <div className="mt-1">{decisionBadge(resultatAnnuel.decision)}</div>
+                        {resultatAnnuel.passage_niveau_superieur && (
+                          <Badge bg="success" className="mt-2">Passage niveau supérieur</Badge>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={3}>
+                    <Card className="border-0 bg-light h-100">
+                      <Card.Body>
+                        <small className="text-muted">Mention</small>
+                        <div className="fs-5 fw-medium mt-1">
+                          {resultatAnnuel.mention
+                            ? MENTION_LABELS[resultatAnnuel.mention] || resultatAnnuel.mention
+                            : '-'}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+              )}
+            </DataCard>
+          </Tab>
+        </Tabs>
+      )}
     </div>
   );
 };
 
 export default ResultatsPage;
+
+
